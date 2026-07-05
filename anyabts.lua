@@ -1,6 +1,9 @@
 -- MM2 Murderer Aim Lock for Innocent/Sheriff
 local shared = odh_shared_plugins
-local my_section = shared.AddSection("MM2 Aim Lock")
+
+local my_own_section = shared.AddSection("Aim lock")
+
+my_own_section:AddLabel("Credits: @Anya_bts")
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -59,9 +62,6 @@ ToggleButton.MouseButton1Click:Connect(function()
         TargetPlayer = nil
     end
 end)
-
--- Credits
-my_section:AddLabel("Credits: @your_name")
 
 -- Description
 my_section:AddParagraph("MM2 Aim Lock", "Aim lock for Innocent. Locks onto Murderer or Sheriff.")
