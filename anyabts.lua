@@ -80,14 +80,21 @@ my_section:AddToggle("Enable Aim Lock", function(bool)
     end
 end)
 
--- Toggle: Target Sheriff instead of Murderer
-my_section:AddToggle("Target Sheriff", function(bool)
-    TargetSheriff = bool
-    TargetPlayer = nil -- reset target
-    if AimLockEnabled and not IsLocalInLobby() then
-        TargetPlayer = FindTarget()
+-- Dropdown: Target Type
+local TargetMode = "Murderer"
+
+local TargetDropdown = my_section:AddDropdown(
+    "Target",
+    {"Murderer", "Sheriff"},
+    function(selected)
+        TargetMode = selected
+        TargetPlayer = nil
+
+        if AimLockEnabled and not IsLocalInLobby() then
+            TargetPlayer = FindTarget()
+        end
     end
-end)
+)
 
 -- Toggle: Enable/Disable Bindable Button
 my_section:AddToggle("Bindable Button", function(bool)
