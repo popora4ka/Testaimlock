@@ -1,6 +1,6 @@
+-- MM2 Murderer Aim Lock for Innocent/Sheriff
 local shared = odh_shared_plugins
-
-local my_own_section = shared.AddSection("Aimlock for mm2")
+local my_section = shared.AddSection("anya_bts_AimLock")
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -25,7 +25,7 @@ local UICorner = Instance.new("UICorner")
 local UIStroke = Instance.new("UIStroke")
 
 ScreenGui.Parent = game.CoreGui
-ScreenGui.Name = "anya_bts_aimlock_gui"
+ScreenGui.Name = "anya_bts_AimLockGUI"
 
 ToggleButton.Parent = ScreenGui
 ToggleButton.Size = UDim2.new(0, 70, 0, 70)
@@ -61,7 +61,7 @@ ToggleButton.MouseButton1Click:Connect(function()
 end)
 
 -- Credits
-my_own_section:AddLabel("Credits: @anya_bts")
+my_section:AddLabel("Credits: anya_bts")
 
 -- Description
 my_section:AddParagraph("aim lock", "have ideas/bugs? ping me")
