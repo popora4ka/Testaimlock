@@ -80,10 +80,10 @@ my_section:AddToggle("Enable Aim Lock", function(bool)
     end
 end)
 
--- Toggle: Target Sheriff instead of Murderer
-my_section:AddToggle("Target Sheriff", function(bool)
-    TargetSheriff = bool
-    TargetPlayer = nil -- reset target
+-- Dropdown: Target Sheriff instead of Murderer
+my_section:AddDropdown("Target Role", {"Murderer", "Sheriff"}, function(selected)
+    TargetSheriff = (selected == "Sheriff")
+    TargetPlayer = nil -- reset target when switching
     if AimLockEnabled and not IsLocalInLobby() then
         TargetPlayer = FindTarget()
     end
