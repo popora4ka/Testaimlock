@@ -61,7 +61,7 @@ ToggleButton.MouseButton1Click:Connect(function()
 end)
 
 -- Credits
-my_section:AddLabel("Credits: anya_bts")
+my_own_section:AddLabel("Credits: @anya_bts")
 
 -- Description
 my_section:AddParagraph("aim lock", "have ideas/bugs? ping me")
