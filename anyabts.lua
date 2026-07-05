@@ -1,6 +1,6 @@
 -- MM2 Murderer Aim Lock for Innocent/Sheriff
 local shared = odh_shared_plugins
-local my_section = shared.AddSection("testing")
+local my_section = shared.AddSection("MM2 Aim Lock")
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -16,6 +16,7 @@ local TargetPart = "Head"
 local TargetPlayer = nil
 local WallCheckEnabled = false
 local BindableButtonEnabled = false
+local TargetSheriff = false -- false = Murderer, true = Sheriff
 
 -- Mobile button
 local ScreenGui = Instance.new("ScreenGui")
@@ -79,21 +80,14 @@ my_section:AddToggle("Enable Aim Lock", function(bool)
     end
 end)
 
--- Dropdown: Target Type
-local TargetMode = "Murderer"
-
-local TargetDropdown = my_section:AddDropdown(
-    "Target",
-    {"Murderer", "Sheriff"},
-    function(selected)
-        TargetMode = selected
-        TargetPlayer = nil
-
-        if AimLockEnabled and not IsLocalInLobby() then
-            TargetPlayer = FindTarget()
-        end
+-- Toggle: Target Sheriff instead of Murderer
+my_section:AddToggle("Target Sheriff", function(bool)
+    TargetSheriff = bool
+    TargetPlayer = nil -- reset target
+    if AimLockEnabled and not IsLocalInLobby() then
+        TargetPlayer = FindTarget()
     end
-)
+end)
 
 -- Toggle: Enable/Disable Bindable Button
 my_section:AddToggle("Bindable Button", function(bool)
@@ -257,9 +251,9 @@ function FindSheriff()
     return nil
 end
 
--- Pick target based on TargetMode
+-- Pick target based on TargetSheriff flag
 function FindTarget()
-    if TargetMode == "Sheriff" then
+    if TargetSheriff then
         return FindSheriff()
     else
         return FindMurderer()
@@ -283,16 +277,11 @@ end
 
 -- Check if current target still has the required weapon
 local function IsValidTarget(player)
-    if not player or not player.Character then
-        return false
-    end
-
+    if not player or not player.Character then return false end
     local hum = player.Character:FindFirstChild("Humanoid")
-    if not hum or hum.Health <= 0 then
-        return false
-    end
-
-    if TargetMode == "Sheriff" then
+    if not hum or hum.Health <= 0 then return false end
+    
+    if TargetSheriff then
         return HasGun(player)
     else
         return HasKnife(player)
@@ -343,4 +332,4 @@ LocalPlayer.CharacterAdded:Connect(function()
     TargetPlayer = nil
 end)
 
-print("MM2 Aim Lock loaded.")
+print("MM2 Aim Lock loaded. Round: Y 180-380. Toggle 'Target Sheriff' to aim at Sheriff.")
