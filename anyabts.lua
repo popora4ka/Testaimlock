@@ -64,7 +64,7 @@ end)
 my_section:AddLabel("Credits: @Anya_bts")
 
 -- Description
-my_section:AddParagraph("MM2 Aim Lock", "Aim lock for Innocent. Locks onto Murderer or Sheriff.")
+my_section:AddParagraph("MM2 Aim Lock", "found bugs or want to suggest? ping me.")
 
 -- Toggle: Enable/Disable Aim Lock
 my_section:AddToggle("Enable Aim Lock", function(bool)
