@@ -61,10 +61,10 @@ ToggleButton.MouseButton1Click:Connect(function()
 end)
 
 -- Credits
-my_section:AddLabel("Credits: @Anya_bts")
+my_section:AddLabel("Credits: @your_name")
 
 -- Description
-my_section:AddParagraph("MM2 Aim Lock", "found bugs or want to suggest? ping me.")
+my_section:AddParagraph("MM2 Aim Lock", "Aim lock for Innocent. Locks onto Murderer or Sheriff.")
 
 -- Toggle: Enable/Disable Aim Lock
 my_section:AddToggle("Enable Aim Lock", function(bool)
@@ -80,8 +80,8 @@ my_section:AddToggle("Enable Aim Lock", function(bool)
     end
 end)
 
--- Dropdown: Target Sheriff instead of Murderer
-my_section:AddDropdown("Target Role", {"Murderer", "Sheriff"}, function(selected)
+-- Dropdown: Choose target role (Murderer or Sheriff)
+local roleDropdown = my_section:AddDropdown("Target Role", {"Murderer", "Sheriff"}, function(selected)
     TargetSheriff = (selected == "Sheriff")
     TargetPlayer = nil -- reset target when switching
     if AimLockEnabled and not IsLocalInLobby() then
@@ -332,4 +332,4 @@ LocalPlayer.CharacterAdded:Connect(function()
     TargetPlayer = nil
 end)
 
-print("MM2 Aim Lock loaded. Round: Y 180-380. Toggle 'Target Sheriff' to aim at Sheriff.")
+print("MM2 Aim Lock loaded. Round: Y 180-380. Dropdown to choose Murderer/Sheriff target.")
