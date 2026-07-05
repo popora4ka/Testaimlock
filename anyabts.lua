@@ -61,7 +61,7 @@ ToggleButton.MouseButton1Click:Connect(function()
 end)
 
 -- Credits
-my_section:AddLabel("Credits: @your_name")
+my_section:AddLabel("Credits: @Anya_bts")
 
 -- Description
 my_section:AddParagraph("MM2 Aim Lock", "Aim lock for Innocent. Locks onto Murderer or Sheriff.")
