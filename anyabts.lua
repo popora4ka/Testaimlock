@@ -1,6 +1,6 @@
 -- MM2 Murderer Aim Lock for Innocent/Sheriff
 local shared = odh_shared_plugins
-local my_section = shared.AddSection("anya_bts_AimLock")
+local my_own_section = shared.AddSection("Aimlockformm2")
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
