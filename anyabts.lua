@@ -61,10 +61,10 @@ ToggleButton.MouseButton1Click:Connect(function()
 end)
 
 -- Credits
-my_section:AddLabel("Credits: @anya_bts")
+my_section:AddLabel("Credits: anya_bts")
 
 -- Description
-my_section:AddParagraph("MM2 Aim Lock", "Have suggestions/bugs? ping me.")
+my_section:AddParagraph("aim lock", "have ideas/bugs? ping me")
 
 -- Toggle: Enable/Disable Aim Lock
 my_section:AddToggle("Enable Aim Lock", function(bool)
@@ -332,4 +332,4 @@ LocalPlayer.CharacterAdded:Connect(function()
     TargetPlayer = nil
 end)
 
-print("MM2 Aim Lock loaded.")
+print("Aim lock loaded")
