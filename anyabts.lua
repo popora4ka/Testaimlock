@@ -16,7 +16,6 @@ local TargetPart = "Head"
 local TargetPlayer = nil
 local WallCheckEnabled = false
 local BindableButtonEnabled = false
-local TargetSheriff = false -- false = Murderer, true = Sheriff
 
 -- Mobile button
 local ScreenGui = Instance.new("ScreenGui")
@@ -80,14 +79,21 @@ my_section:AddToggle("Enable Aim Lock", function(bool)
     end
 end)
 
--- Dropdown: Choose target role (Murderer or Sheriff)
-my_section:AddDropdown("Target Role", {"Murderer", "Sheriff"}, function(selected)
-    TargetSheriff = (selected == "Sheriff")
-    TargetPlayer = nil -- reset target when switching
-    if AimLockEnabled and not IsLocalInLobby() then
-        TargetPlayer = FindTarget()
+-- Dropdown: Target Type
+local TargetMode = "Murderer"
+
+local TargetDropdown = my_section:AddDropdown(
+    "Target",
+    {"Murderer", "Sheriff"},
+    function(selected)
+        TargetMode = selected
+        TargetPlayer = nil
+
+        if AimLockEnabled and not IsLocalInLobby() then
+            TargetPlayer = FindTarget()
+        end
     end
-end)
+)
 
 -- Toggle: Enable/Disable Bindable Button
 my_section:AddToggle("Bindable Button", function(bool)
@@ -251,9 +257,9 @@ function FindSheriff()
     return nil
 end
 
--- Pick target based on TargetSheriff flag
+-- Pick target based on TargetMode
 function FindTarget()
-    if TargetSheriff then
+    if TargetMode == "Sheriff" then
         return FindSheriff()
     else
         return FindMurderer()
@@ -277,11 +283,16 @@ end
 
 -- Check if current target still has the required weapon
 local function IsValidTarget(player)
-    if not player or not player.Character then return false end
+    if not player or not player.Character then
+        return false
+    end
+
     local hum = player.Character:FindFirstChild("Humanoid")
-    if not hum or hum.Health <= 0 then return false end
-    
-    if TargetSheriff then
+    if not hum or hum.Health <= 0 then
+        return false
+    end
+
+    if TargetMode == "Sheriff" then
         return HasGun(player)
     else
         return HasKnife(player)
@@ -332,4 +343,4 @@ LocalPlayer.CharacterAdded:Connect(function()
     TargetPlayer = nil
 end)
 
-print("MM2 Aim Lock loaded. Round: Y 180-380. Dropdown to choose Murderer/Sheriff target.")
+print("MM2 Aim Lock loaded.")
