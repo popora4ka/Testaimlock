@@ -97,7 +97,7 @@ my_section:AddToggle("Wall Check", function(bool)
 end)
 
 -- Dropdown: Target Role (Murderer or Sheriff)
-local roleDropdown = my_section:AddDropdown("Target Role", {"Murderer", "Sheriff"}, function(selected)
+local Dropdown = my_section:AddDropdown("Target Role", {"Murderer", "Sheriff"}, function(selected)
     TargetRole = selected
     TargetPlayer = nil -- Reset target when switching role
     if AimLockEnabled and not IsLocalInLobby() then
