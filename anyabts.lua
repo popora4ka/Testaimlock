@@ -260,25 +260,8 @@ local AimLockEnabled = false
 local AimTarget = "Murderer"
 local AimPart = "Head"
 local WallCheck = false
-
--- Create bindable button for aim lock
-local AimLockBind = BindableButtons.AddBButton(
-    "MM2_AimLock",
-    "AIM LOCK",
-    function()
-        AimLockEnabled = true
-        shared.Notify("Aim Lock: ON", 2)
-    end,
-    function()
-        AimLockEnabled = false
-        shared.Notify("Aim Lock: OFF", 2)
-    end
-)
-
--- Sync bind value with aim lock state
-AimLockBind.Changed:Connect(function(val)
-    AimLockEnabled = val
-end)
+local BindButtonEnabled = false
+local AimLockBind = nil
 
 -- Credits
 my_section:AddLabel("Credits: @anya_bts")
@@ -289,7 +272,47 @@ my_section:AddParagraph("MM2 Aim Lock", "Auto-aim for Innocent role. Locks camer
 -- Toggle: Enable Aim Lock
 my_section:AddToggle("Enable Aim Lock", function(bool)
     AimLockEnabled = bool
-    AimLockBind.Value = bool
+    if AimLockBind then
+        AimLockBind.Value = bool
+    end
+end)
+
+-- Toggle: Show Bind Button
+my_section:AddToggle("Show Bind Button", function(bool)
+    BindButtonEnabled = bool
+    
+    if bool then
+        if not AimLockBind then
+            AimLockBind = BindableButtons.AddBButton(
+                "MM2_AimLock",
+                "AIM LOCK",
+                function()
+                    AimLockEnabled = true
+                    shared.Notify("Aim Lock: ON", 2)
+                end,
+                function()
+                    AimLockEnabled = false
+                    shared.Notify("Aim Lock: OFF", 2)
+                end
+            )
+            AimLockBind.Changed:Connect(function(val)
+                AimLockEnabled = val
+            end)
+            AimLockBind.Value = AimLockEnabled
+        else
+            local btn = BindableButtons.Buttons["MM2_AimLock"]
+            if btn then
+                btn.Visible = true
+            end
+        end
+    else
+        if AimLockBind then
+            local btn = BindableButtons.Buttons["MM2_AimLock"]
+            if btn then
+                btn.Visible = false
+            end
+        end
+    end
 end)
 
 -- Dropdown: Target Role
@@ -314,7 +337,9 @@ end)
 -- Keybind: Toggle Aim Lock
 my_section:AddKeybind("Toggle Key", "T", function()
     AimLockEnabled = not AimLockEnabled
-    AimLockBind.Value = AimLockEnabled
+    if AimLockBind then
+        AimLockBind.Value = AimLockEnabled
+    end
 end)
 
 -- ==================== FUNCTIONS ====================
