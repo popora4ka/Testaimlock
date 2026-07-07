@@ -87,7 +87,7 @@ local Dropdown = my_section:AddDropdown("Target Role", {"Murderer", "Sheriff"}, 
     else
         TargetSheriff = false
     end
-    TargetPlayer = ResetTarget
+    TargetPlayer = resettarget
     if AimLockEnabled and not IsLocalInLobby() then
         TargetPlayer = FindTarget()
     end
