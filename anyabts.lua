@@ -1,9 +1,6 @@
 -- MM2 Murderer Aim Lock for Innocent/Sheriff
 local shared = odh_shared_plugins
-
-local my_own_section = shared.AddSection("Aim lock")
-
-my_own_section:AddLabel("Credits: @Anya_bts")
+local my_section = shared.AddSection("MM2 Aim Lock")
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -63,6 +60,9 @@ ToggleButton.MouseButton1Click:Connect(function()
     end
 end)
 
+-- Credits
+my_section:AddLabel("Credits: @anya_bts")
+
 -- Description
 my_section:AddParagraph("MM2 Aim Lock", "Aim lock for Innocent. Locks onto Murderer or Sheriff.")
 
@@ -80,21 +80,14 @@ my_section:AddToggle("Enable Aim Lock", function(bool)
     end
 end)
 
--- Dropdown: Target Type
-local TargetMode = "Murderer"
-
-local TargetDropdown = my_section:AddDropdown(
-    "Target",
-    {"Murderer", "Sheriff"},
-    function(selected)
-        TargetMode = selected
-        TargetPlayer = nil
-
-        if AimLockEnabled and not IsLocalInLobby() then
-            TargetPlayer = FindTarget()
-        end
+-- Dropdown: Target Role (Murderer or Sheriff)
+my_section:AddDropdown("Target Role", {"Murderer", "Sheriff"}, function(selected)
+    TargetSheriff = (selected == "Sheriff")
+    TargetPlayer = nil -- reset target
+    if AimLockEnabled and not IsLocalInLobby() then
+        TargetPlayer = FindTarget()
     end
-)
+end)
 
 -- Toggle: Enable/Disable Bindable Button
 my_section:AddToggle("Bindable Button", function(bool)
