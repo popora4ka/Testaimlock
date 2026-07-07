@@ -16,7 +16,7 @@ local TargetPart = "Head"
 local TargetPlayer = nil
 local WallCheckEnabled = false
 local BindableButtonEnabled = false
-local TargetSheriff = false -- false = Murderer, true = Sheriff
+local TargetRole = "Murderer" -- "Murderer" or "Sheriff"
 
 -- Mobile button
 local ScreenGui = Instance.new("ScreenGui")
@@ -61,10 +61,10 @@ ToggleButton.MouseButton1Click:Connect(function()
 end)
 
 -- Credits
-my_section:AddLabel("Credits: @anya_bts")
+my_section:AddLabel("Credits: @your_name")
 
 -- Description
-my_section:AddParagraph("MM2 Aim Lock", "Aim lock for Innocent. Locks onto Murderer or Sheriff.")
+my_section:AddParagraph("MM2 Aim Lock", "Aim lock for Innocent/Sheriff. Locks onto selected role.")
 
 -- Toggle: Enable/Disable Aim Lock
 my_section:AddToggle("Enable Aim Lock", function(bool)
@@ -77,19 +77,6 @@ my_section:AddToggle("Enable Aim Lock", function(bool)
     else
         UIStroke.Color = Color3.fromRGB(255, 255, 255)
         TargetPlayer = nil
-    end
-end)
-
--- Dropdown: Target Role
-local Dropdown = my_section:AddDropdown("Target Role", {"Murderer", "Sheriff"}, function(selected)
-    if selected == "Sheriff" then
-        TargetSheriff = true
-    else
-        TargetSheriff = false
-    end
-    TargetPlayer = resettarget
-    if AimLockEnabled and not IsLocalInLobby() then
-        TargetPlayer = FindTarget()
     end
 end)
 
@@ -106,6 +93,15 @@ my_section:AddToggle("Wall Check", function(bool)
         shared.Notify("Wall Check enabled", 2)
     else
         shared.Notify("Wall Check disabled", 2)
+    end
+end)
+
+-- Dropdown: Target Role (Murderer or Sheriff)
+local roleDropdown = my_section:AddDropdown("Target Role", {"Murderer", "Sheriff"}, function(selected)
+    TargetRole = selected
+    TargetPlayer = nil -- Reset target when switching role
+    if AimLockEnabled and not IsLocalInLobby() then
+        TargetPlayer = FindTarget()
     end
 end)
 
@@ -179,14 +175,16 @@ function IsTargetVisible(target)
     return true
 end
 
--- Check if player has a knife (Murderer)
-local function HasKnife(player)
+-- Check if player has knife (Murderer)
+function HasKnife(player)
     if not player or not player.Character then return false end
+    
     for _, item in ipairs(player.Character:GetChildren()) do
         if item:IsA("Tool") and (item.Name:lower():find("knife") or item.Name:lower():find("нож")) then
             return true
         end
     end
+    
     local backpack = player:FindFirstChild("Backpack")
     if backpack then
         for _, item in ipairs(backpack:GetChildren()) do
@@ -195,17 +193,20 @@ local function HasKnife(player)
             end
         end
     end
+    
     return false
 end
 
--- Check if player has a gun (Sheriff)
-local function HasGun(player)
+-- Check if player has gun (Sheriff)
+function HasGun(player)
     if not player or not player.Character then return false end
+    
     for _, item in ipairs(player.Character:GetChildren()) do
         if item:IsA("Tool") and (item.Name:lower():find("gun") or item.Name:lower():find("пистолет") or item.Name:lower():find("револьвер") or item.Name:lower():find("revolver")) then
             return true
         end
     end
+    
     local backpack = player:FindFirstChild("Backpack")
     if backpack then
         for _, item in ipairs(backpack:GetChildren()) do
@@ -214,54 +215,37 @@ local function HasGun(player)
             end
         end
     end
+    
     return false
 end
 
--- Find the Murderer (player with knife)
-function FindMurderer()
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            local humanoid = player.Character:FindFirstChild("Humanoid")
-            if humanoid and humanoid.Health > 0 and HasKnife(player) then
-                if WallCheckEnabled then
-                    if IsTargetVisible(player) then
-                        return player
-                    end
-                else
-                    return player
-                end
-            end
-        end
-    end
-    return nil
-end
-
--- Find the Sheriff (player with gun)
-function FindSheriff()
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            local humanoid = player.Character:FindFirstChild("Humanoid")
-            if humanoid and humanoid.Health > 0 and HasGun(player) then
-                if WallCheckEnabled then
-                    if IsTargetVisible(player) then
-                        return player
-                    end
-                else
-                    return player
-                end
-            end
-        end
-    end
-    return nil
-end
-
--- Pick target based on TargetSheriff flag
+-- Find target based on TargetRole setting
 function FindTarget()
-    if TargetSheriff then
-        return FindSheriff()
-    else
-        return FindMurderer()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid and humanoid.Health > 0 then
+                local isValidTarget = false
+                
+                if TargetRole == "Murderer" then
+                    isValidTarget = HasKnife(player)
+                elseif TargetRole == "Sheriff" then
+                    isValidTarget = HasGun(player)
+                end
+                
+                if isValidTarget then
+                    if WallCheckEnabled then
+                        if IsTargetVisible(player) then
+                            return player
+                        end
+                    else
+                        return player
+                    end
+                end
+            end
+        end
     end
+    return nil
 end
 
 -- Get target position
@@ -279,17 +263,17 @@ function GetTargetPosition(player)
     return nil
 end
 
--- Check if current target still has the required weapon
-local function IsValidTarget(player)
+-- Validate if player matches target role
+function IsValidRole(player)
     if not player or not player.Character then return false end
-    local hum = player.Character:FindFirstChild("Humanoid")
-    if not hum or hum.Health <= 0 then return false end
     
-    if TargetSheriff then
-        return HasGun(player)
-    else
+    if TargetRole == "Murderer" then
         return HasKnife(player)
+    elseif TargetRole == "Sheriff" then
+        return HasGun(player)
     end
+    
+    return false
 end
 
 -- Main loop
@@ -309,13 +293,18 @@ RunService.RenderStepped:Connect(function()
     end
     
     local validTarget = false
-    if TargetPlayer and IsValidTarget(TargetPlayer) then
-        if WallCheckEnabled then
-            if IsTargetVisible(TargetPlayer) then
-                validTarget = true
+    if TargetPlayer and TargetPlayer.Character then
+        local hum = TargetPlayer.Character:FindFirstChild("Humanoid")
+        if hum and hum.Health > 0 then
+            if IsValidRole(TargetPlayer) then
+                if WallCheckEnabled then
+                    if IsTargetVisible(TargetPlayer) then
+                        validTarget = true
+                    end
+                else
+                    validTarget = true
+                end
             end
-        else
-            validTarget = true
         end
     end
     
@@ -336,4 +325,4 @@ LocalPlayer.CharacterAdded:Connect(function()
     TargetPlayer = nil
 end)
 
-print("MM2 Aim Lock loaded. Round: Y 180-380. Toggle 'Target Sheriff' to aim at Sheriff.")
+print("MM2 Aim Lock loaded. Targets: Murderer & Sheriff. Round: Y 180-380.")
