@@ -81,7 +81,7 @@ my_section:AddToggle("Enable Aim Lock", function(bool)
 end)
 
 -- Dropdown: Target Role
-local targetRoleDropdown = my_section:AddDropdown("Target Role", {"Murderer", "Sheriff"}, function(selected)
+local Dropdown = my_section:AddDropdown("Target Role", {"Murderer", "Sheriff"}, function(selected)
     if selected == "Sheriff" then
         TargetSheriff = true
     else
