@@ -1,4 +1,4 @@
--- MM2 Aim Lock for OverdriveH
+-- MM2 Aim Lock for OverdriveH with BindableButtons
 local shared = odh_shared_plugins
 local my_section = shared.AddSection("MM2 Aim Lock")
 
@@ -7,60 +7,285 @@ local RunService = game:GetService("RunService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
--- Settings
-local AimLockEnabled = false
-local AimTarget = "Murderer" -- "Murderer" or "Sheriff"
-local AimPart = "Head" -- "Head" or "HumanoidRootPart"
-local WallCheck = false
-local UseKeybind = true
-local KeybindKey = "T"
+-- ==================== BINDABLE BUTTONS SYSTEM ====================
+local __INSERT = table.insert
+local __FLOOR = math.floor
+local __PCLR = Color3.new
+local __RGB = Color3.fromRGB
+local __UD2 = UDim2.new
+local __UD = UDim.new
+local __V2 = Vector2.new
 
--- Mobile button
-local ScreenGui = Instance.new("ScreenGui")
-local AimButton = Instance.new("TextButton")
-local ButtonCorner = Instance.new("UICorner")
-local ButtonStroke = Instance.new("UIStroke")
+local function getfserv(s)
+	local success, service = pcall(function() return game:GetService(s) end)
+	if success and service then return service end
+	success, service = pcall(function() return game:FindService(s) end)
+	if success and service then return service end
+	return game[s]
+end
 
-ScreenGui.Parent = game.CoreGui
-ScreenGui.Name = "MM2AimLock_UI"
+local __TS = getfserv("TweenService")
+local __UIS = getfserv("UserInputService")
+local __RS = getfserv("RunService")
+local __PLRS = getfserv("Players")
 
-AimButton.Parent = ScreenGui
-AimButton.Size = UDim2.new(0, 70, 0, 70)
-AimButton.Position = UDim2.new(0.85, 0, 0.45, 0)
-AimButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-AimButton.Text = "AIM\nOFF"
-AimButton.TextColor3 = Color3.fromRGB(255, 80, 80)
-AimButton.TextSize = 12
-AimButton.Font = Enum.Font.GothamBold
-AimButton.BorderSizePixel = 0
-AimButton.Active = true
-AimButton.Draggable = true
-AimButton.Visible = false
+local Maid = {}
+Maid.__index = Maid
+function Maid.new() return setmetatable({_tasks = {}, _destroyed = false}, Maid) end
+function Maid:GiveTask(task)
+    if self._destroyed then
+        if typeof(task) == "RBXScriptConnection" then task:Disconnect()
+        elseif typeof(task) == "Instance" then task:Destroy()
+        elseif type(task) == "function" then task()
+        elseif type(task) == "table" and type(task).Destroy == "function" then task:Destroy() end
+        return
+    end
+    __INSERT(self._tasks, task)
+    return task
+end
+function Maid:DoCleaning()
+    if self._destroyed then return end
+    self._destroyed = true
+    for _, t in pairs(self._tasks) do
+        if typeof(t) == "RBXScriptConnection" then t:Disconnect()
+        elseif typeof(t) == "Instance" then t:Destroy()
+        elseif type(t) == "function" then t()
+        elseif type(t) == "table" and type(t).Destroy == "function" then t:Destroy() end
+    end
+    self._tasks = {}
+end
+function Maid:Destroy() self:DoCleaning() end
 
-ButtonCorner.Parent = AimButton
-ButtonCorner.CornerRadius = UDim.new(1, 0)
+local BindableButtons = {Buttons = {}, Maids = {}, Count = 0}
+local __RootMaid = Maid.new()
 
-ButtonStroke.Parent = AimButton
-ButtonStroke.Color = Color3.fromRGB(255, 80, 80)
-ButtonStroke.Thickness = 2
+local __SHAPES = {
+    [0] = "rbxassetid://86221076925479",
+    [1] = "rbxassetid://96242665417546",
+    [2] = "rbxassetid://97129189935336",
+    [3] = "rbxassetid://76165862027868",
+    [4] = "rbxassetid://125868092127496"
+}
 
--- Button click handler
-AimButton.MouseButton1Click:Connect(function()
-    AimLockEnabled = not AimLockEnabled
-    UpdateButtonState()
-end)
+local __NORMAL_COLOR = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, __PCLR(0.133333, 0.827451, 0.494118)),
+    ColorSequenceKeypoint.new(0.6, __PCLR(0.231373, 0.509804, 0.498039)),
+    ColorSequenceKeypoint.new(1, __PCLR(0.501961, 0.501961, 0.501961))
+})
 
-function UpdateButtonState()
-    if AimLockEnabled then
-        AimButton.Text = "AIM\nON"
-        AimButton.TextColor3 = Color3.fromRGB(80, 255, 80)
-        ButtonStroke.Color = Color3.fromRGB(80, 255, 80)
-    else
-        AimButton.Text = "AIM\nOFF"
-        AimButton.TextColor3 = Color3.fromRGB(255, 80, 80)
-        ButtonStroke.Color = Color3.fromRGB(255, 80, 80)
+local __TOGGLED_COLOR = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, __PCLR(0.0784314, 0.0784314, 0.0784314)),
+    ColorSequenceKeypoint.new(0.75, __PCLR(0.0784314, 0.0784314, 0.54902)),
+    ColorSequenceKeypoint.new(1, __PCLR(0.470588, 0.156863, 0.470588))
+})
+
+local function safecallback(callback)
+    if not callback then return end
+    local success, err = xpcall(callback, function(e) return debug.traceback(e) end)
+    if not success then
+        warn("[ERROR] Fucker Something Went Wrong, Traceback: " .. tostring(err))
     end
 end
+
+local function GetStorage()
+    local storageParent = (gethui and gethui()) or (getfserv("CoreGui")) or __PLRS.LocalPlayer:WaitForChild("PlayerGui")
+    local sg = storageParent:FindFirstChild("@bindstorage")
+    if not sg then
+        sg = Instance.new("ScreenGui")
+        sg.Name = "@bindstorage"
+        sg.ResetOnSpawn = false
+        sg.IgnoreGuiInset = true
+        pcall(function() sg.ScreenInsets = Enum.ScreenInsets.None end)
+        sg.Parent = storageParent
+        __RootMaid:GiveTask(sg)
+    end
+    return sg
+end
+
+local function MakeDraggable(gui, maid, ripple, sound, clickFunc)
+    local dragging, dragInput, dragStart, startPos
+    local hasMoved = false
+    
+    maid:GiveTask(gui.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging, dragStart, startPos = true, input.Position, gui.Position
+            hasMoved = false
+            
+            sound:Play()
+            local absPos = gui.AbsolutePosition
+            ripple.Position = __UD2(0, input.Position.X - absPos.X, 0, input.Position.Y - absPos.Y)
+            ripple.Size = __UD2(0, 0, 0, 0)
+            ripple.BackgroundTransparency = 0.5
+            ripple.Visible = true
+            
+            __TS:Create(ripple, TweenInfo.new(0.4, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+                Size = __UD2(0, 45, 0, 45),
+                BackgroundTransparency = 1
+            }):Play()
+
+            local releaseConn
+            releaseConn = __UIS.InputEnded:Connect(function(endInput)
+                if endInput.UserInputType == input.UserInputType then
+                    dragging = false
+                    if not hasMoved then
+                        clickFunc()
+                    end
+                    releaseConn:Disconnect()
+                end
+            end)
+        end
+    end))
+    
+    maid:GiveTask(gui.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+    end))
+    
+    maid:GiveTask(__UIS.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            if delta.Magnitude > 7 then hasMoved = true end
+            local screen = gui.Parent.AbsoluteSize
+            gui.Position = __UD2(startPos.X.Scale + (delta.X / screen.X), 0, startPos.Y.Scale + (delta.Y / screen.Y), 0)
+        end
+    end))
+end
+
+function BindableButtons.AddBButton(id, text, onFunc, offFunc)
+    if BindableButtons.Buttons[id] then return BindableButtons.Buttons[id]:FindFirstChild("BindValue") end
+    
+    local buttonMaid = Maid.new()
+    local camera = workspace.CurrentCamera
+    local screen = camera.ViewportSize
+    
+    local buttonSizeY = 0.11
+    local widthScale = buttonSizeY * (screen.Y / screen.X)
+    
+    local xPos = 0.1 + ((BindableButtons.Count % 8) * (widthScale + 0.005))
+    local yPos = 0.9 - (__FLOOR(BindableButtons.Count / 8) * (buttonSizeY + 0.015))
+    
+    local ImageButton = Instance.new("ImageButton")
+    ImageButton.Name = id
+    ImageButton.Size = __UD2(widthScale, 0, buttonSizeY, 0)
+    ImageButton.Position = __UD2(xPos, 0, yPos, 0)
+    ImageButton.AnchorPoint = __V2(0.5, 0.5)
+    ImageButton.Image = __SHAPES[0]
+    ImageButton.BackgroundTransparency = 1
+    ImageButton.BorderSizePixel = 0
+    ImageButton.ClipsDescendants = false
+    ImageButton.AutoButtonColor = false
+    ImageButton.Parent = GetStorage()
+    buttonMaid:GiveTask(ImageButton)
+
+    local BindValue = Instance.new("BoolValue", ImageButton)
+    BindValue.Name = "BindValue"
+
+    local TextLabel = Instance.new("TextLabel", ImageButton)
+    TextLabel.Name = "@Text"
+    TextLabel.Size = __UD2(0.8, 0, 0.8, 0)
+    TextLabel.Position = __UD2(0.5, 0, 0.5, 0)
+    TextLabel.AnchorPoint = __V2(0.5, 0.5)
+    TextLabel.BackgroundTransparency = 1
+    TextLabel.Font = Enum.Font.Jura
+    TextLabel.Text = text
+    TextLabel.TextColor3 = __PCLR(1, 1, 1)
+    TextLabel.TextSize = 10
+    TextLabel.TextWrapped = true
+    TextLabel.ZIndex = 3
+
+    local Aspect = Instance.new("UIAspectRatioConstraint", ImageButton)
+    Aspect.AspectRatio = 1
+    Aspect.AspectType = Enum.AspectType.ScaleWithParentSize
+
+    local Stroke = Instance.new("UIGradient", ImageButton)
+    Stroke.Name = "@Stroke"
+    Stroke.Color = __NORMAL_COLOR
+
+    local ripple = Instance.new("Frame")
+    ripple.Name = "@ripple"
+    ripple.BackgroundColor3 = __RGB(0, 155, 255)
+    ripple.BackgroundTransparency = 0.5
+    ripple.Size = __UD2(0, 0, 0, 0)
+    ripple.AnchorPoint = __V2(0.5, 0.5)
+    ripple.Visible = false
+    ripple.ZIndex = 2
+    ripple.Parent = ImageButton
+    Instance.new("UICorner", ripple).CornerRadius = __UD(1, 0)
+
+    local sound = Instance.new("Sound")
+    sound.SoundId = "rbxassetid://3868133279"
+    sound.Volume = 0.5
+    sound.Parent = ImageButton
+
+    local debounce = false
+    local tInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
+
+    local function onClick()
+        if debounce then return end
+        debounce = true
+        local fOut = __TS:Create(ImageButton, tInfo, {ImageTransparency = 1})
+        fOut:Play()
+        fOut.Completed:Wait()
+        
+        BindValue.Value = not BindValue.Value
+        Stroke.Color = BindValue.Value and __TOGGLED_COLOR or __NORMAL_COLOR
+        if BindValue.Value then safecallback(onFunc) else safecallback(offFunc) end
+        
+        local fIn = __TS:Create(ImageButton, tInfo, {ImageTransparency = 0})
+        fIn:Play()
+        fIn.Completed:Wait()
+        debounce = false
+    end
+
+    MakeDraggable(ImageButton, buttonMaid, ripple, sound, onClick)
+    buttonMaid:GiveTask(__RS.RenderStepped:Connect(function() Stroke.Rotation = (Stroke.Rotation + 1) % 360 end))
+
+    BindableButtons.Buttons[id] = ImageButton
+    BindableButtons.Maids[id] = buttonMaid
+    BindableButtons.Count = BindableButtons.Count + 1
+    return BindValue
+end
+
+function BindableButtons.SetShape(id, shape)
+    local btn = BindableButtons.Buttons[id]
+    if btn and __SHAPES[shape] then
+        btn.Image = __SHAPES[shape]
+    end
+end
+
+function BindableButtons.DeleteBButton(id)
+    if BindableButtons.Maids[id] then
+        BindableButtons.Maids[id]:Destroy()
+        BindableButtons.Maids[id] = nil
+        BindableButtons.Buttons[id] = nil
+    end
+end
+
+-- ==================== AIM LOCK LOGIC ====================
+
+-- Settings
+local AimLockEnabled = false
+local AimTarget = "Murderer"
+local AimPart = "Head"
+local WallCheck = false
+
+-- Create bindable button for aim lock
+local AimLockBind = BindableButtons.AddBButton(
+    "MM2_AimLock",
+    "AIM LOCK",
+    function()
+        AimLockEnabled = true
+        shared.Notify("Aim Lock: ON", 2)
+    end,
+    function()
+        AimLockEnabled = false
+        shared.Notify("Aim Lock: OFF", 2)
+    end
+)
+
+-- Sync bind value with aim lock state
+AimLockBind.Changed:Connect(function(val)
+    AimLockEnabled = val
+end)
 
 -- Credits
 my_section:AddLabel("Credits: @anya_bts")
@@ -71,7 +296,7 @@ my_section:AddParagraph("MM2 Aim Lock", "Auto-aim for Innocent role. Locks camer
 -- Toggle: Enable Aim Lock
 my_section:AddToggle("Enable Aim Lock", function(bool)
     AimLockEnabled = bool
-    UpdateButtonState()
+    AimLockBind.Value = bool
 end)
 
 -- Dropdown: Target Role
@@ -93,18 +318,14 @@ my_section:AddToggle("Wall Check", function(bool)
     WallCheck = bool
 end)
 
--- Toggle: Show Mobile Button
-my_section:AddToggle("Show Mobile Button", function(bool)
-    AimButton.Visible = bool
-end)
-
--- Keybind
+-- Keybind: Toggle Aim Lock
 my_section:AddKeybind("Toggle Key", "T", function()
     AimLockEnabled = not AimLockEnabled
-    UpdateButtonState()
+    AimLockBind.Value = AimLockEnabled
 end)
 
--- Check if player is in game round
+-- ==================== FUNCTIONS ====================
+
 local function IsInRound()
     local char = LocalPlayer.Character
     if not char then return false end
@@ -114,7 +335,6 @@ local function IsInRound()
     return (y >= 180 and y <= 380)
 end
 
--- Raycast wall check
 local function IsVisible(targetChar)
     if not targetChar then return false end
     
@@ -135,7 +355,6 @@ local function IsVisible(targetChar)
     return true
 end
 
--- Get tool from character or backpack
 local function GetTool(player, keywords)
     if not player.Character then return nil end
     
@@ -156,7 +375,6 @@ local function GetTool(player, keywords)
     return check(player.Character) or (player.Backpack and check(player.Backpack))
 end
 
--- Find target based on role
 local function FindTarget()
     local knifeKeywords = {"knife", "нож"}
     local gunKeywords = {"gun", "пистолет", "револьвер", "revolver", "sheriff", "шериф"}
@@ -178,15 +396,15 @@ local function FindTarget()
                 
                 if valid then
                     if WallCheck and not IsVisible(player.Character) then
-                        continue
-                    end
-                    
-                    local root = player.Character:FindFirstChild("HumanoidRootPart")
-                    if root then
-                        local dist = (Camera.CFrame.Position - root.Position).Magnitude
-                        if dist < bestDistance then
-                            bestDistance = dist
-                            bestTarget = player
+                        -- skip this player
+                    else
+                        local root = player.Character:FindFirstChild("HumanoidRootPart")
+                        if root then
+                            local dist = (Camera.CFrame.Position - root.Position).Magnitude
+                            if dist < bestDistance then
+                                bestDistance = dist
+                                bestTarget = player
+                            end
                         end
                     end
                 end
@@ -197,7 +415,8 @@ local function FindTarget()
     return bestTarget
 end
 
--- Main aim loop
+-- ==================== MAIN LOOP ====================
+
 RunService.RenderStepped:Connect(function()
     if not AimLockEnabled then return end
     if not IsInRound() then return end
@@ -213,9 +432,4 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Cleanup on death
-LocalPlayer.CharacterAdded:Connect(function(char)
-    -- Nothing needed, FindTarget handles nil characters
-end)
-
-print("[MM2 Aim Lock] Loaded successfully")
+print("[MM2 Aim Lock] Loaded successfully with BindableButtons")
