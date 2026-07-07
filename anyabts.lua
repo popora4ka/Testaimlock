@@ -16,18 +16,10 @@ local __UD2 = UDim2.new
 local __UD = UDim.new
 local __V2 = Vector2.new
 
-local function getfserv(s)
-	local success, service = pcall(function() return game:GetService(s) end)
-	if success and service then return service end
-	success, service = pcall(function() return game:FindService(s) end)
-	if success and service then return service end
-	return game[s]
-end
-
-local __TS = getfserv("TweenService")
-local __UIS = getfserv("UserInputService")
-local __RS = getfserv("RunService")
-local __PLRS = getfserv("Players")
+local __TS = game:GetService("TweenService")
+local __UIS = game:GetService("UserInputService")
+local __RS = game:GetService("RunService")
+local __PLRS = game:GetService("Players")
 
 local Maid = {}
 Maid.__index = Maid
@@ -88,7 +80,7 @@ local function safecallback(callback)
 end
 
 local function GetStorage()
-    local storageParent = (gethui and gethui()) or (getfserv("CoreGui")) or __PLRS.LocalPlayer:WaitForChild("PlayerGui")
+    local storageParent = (gethui and gethui()) or game:GetService("CoreGui") or __PLRS.LocalPlayer:WaitForChild("PlayerGui")
     local sg = storageParent:FindFirstChild("@bindstorage")
     if not sg then
         sg = Instance.new("ScreenGui")
@@ -396,7 +388,7 @@ local function FindTarget()
                 
                 if valid then
                     if WallCheck and not IsVisible(player.Character) then
-                        -- skip this player
+                        -- skip
                     else
                         local root = player.Character:FindFirstChild("HumanoidRootPart")
                         if root then
