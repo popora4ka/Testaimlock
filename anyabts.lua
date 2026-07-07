@@ -80,15 +80,17 @@ local function safecallback(callback)
 end
 
 local function GetStorage()
-    local storageParent = game:GetService("CoreGui")
-    local sg = storageParent:FindFirstChild("@bindstorage")
+    local player = __PLRS.LocalPlayer
+    local playerGui = player:WaitForChild("PlayerGui")
+    
+    local sg = playerGui:FindFirstChild("@bindstorage")
     if not sg then
         sg = Instance.new("ScreenGui")
         sg.Name = "@bindstorage"
         sg.ResetOnSpawn = false
         sg.IgnoreGuiInset = true
         pcall(function() sg.ScreenInsets = Enum.ScreenInsets.None end)
-        sg.Parent = storageParent
+        sg.Parent = playerGui
     end
     return sg
 end
