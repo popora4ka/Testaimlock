@@ -1,328 +1,221 @@
--- MM2 Murderer Aim Lock for Innocent/Sheriff
+-- MM2 Aim Lock for OverdriveH
 local shared = odh_shared_plugins
 local my_section = shared.AddSection("MM2 Aim Lock")
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 local Camera = workspace.CurrentCamera
-
 local LocalPlayer = Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
 
 -- Settings
 local AimLockEnabled = false
-local TargetPart = "Head"
-local TargetPlayer = nil
-local WallCheckEnabled = false
-local BindableButtonEnabled = false
-local TargetRole = "Murderer" -- "Murderer" or "Sheriff"
+local AimTarget = "Murderer" -- "Murderer" or "Sheriff"
+local AimPart = "Head" -- "Head" or "HumanoidRootPart"
+local WallCheck = false
+local UseKeybind = true
+local KeybindKey = "T"
 
 -- Mobile button
 local ScreenGui = Instance.new("ScreenGui")
-local ToggleButton = Instance.new("TextButton")
-local UICorner = Instance.new("UICorner")
-local UIStroke = Instance.new("UIStroke")
+local AimButton = Instance.new("TextButton")
+local ButtonCorner = Instance.new("UICorner")
+local ButtonStroke = Instance.new("UIStroke")
 
 ScreenGui.Parent = game.CoreGui
-ScreenGui.Name = "MM2AimLockGUI"
+ScreenGui.Name = "MM2AimLock_UI"
 
-ToggleButton.Parent = ScreenGui
-ToggleButton.Size = UDim2.new(0, 70, 0, 70)
-ToggleButton.Position = UDim2.new(0.85, 0, 0.5, -35)
-ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
-ToggleButton.Text = "AIM\nLOCK"
-ToggleButton.TextColor3 = Color3.new(1, 1, 1)
-ToggleButton.TextSize = 13
-ToggleButton.Font = Enum.Font.GothamBold
-ToggleButton.BorderSizePixel = 0
-ToggleButton.Active = true
-ToggleButton.Draggable = true
-ToggleButton.Visible = false
+AimButton.Parent = ScreenGui
+AimButton.Size = UDim2.new(0, 70, 0, 70)
+AimButton.Position = UDim2.new(0.85, 0, 0.45, 0)
+AimButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+AimButton.Text = "AIM\nOFF"
+AimButton.TextColor3 = Color3.fromRGB(255, 80, 80)
+AimButton.TextSize = 12
+AimButton.Font = Enum.Font.GothamBold
+AimButton.BorderSizePixel = 0
+AimButton.Active = true
+AimButton.Draggable = true
+AimButton.Visible = false
 
-UICorner.Parent = ToggleButton
-UICorner.CornerRadius = UDim.new(1, 0)
+ButtonCorner.Parent = AimButton
+ButtonCorner.CornerRadius = UDim.new(1, 0)
 
-UIStroke.Parent = ToggleButton
-UIStroke.Color = Color3.fromRGB(255, 255, 255)
-UIStroke.Thickness = 2
+ButtonStroke.Parent = AimButton
+ButtonStroke.Color = Color3.fromRGB(255, 80, 80)
+ButtonStroke.Thickness = 2
 
-ToggleButton.MouseButton1Click:Connect(function()
+-- Button click handler
+AimButton.MouseButton1Click:Connect(function()
     AimLockEnabled = not AimLockEnabled
+    UpdateButtonState()
+end)
+
+function UpdateButtonState()
     if AimLockEnabled then
-        UIStroke.Color = Color3.fromRGB(0, 255, 0)
-        if not IsLocalInLobby() then
-            TargetPlayer = FindTarget()
-        end
+        AimButton.Text = "AIM\nON"
+        AimButton.TextColor3 = Color3.fromRGB(80, 255, 80)
+        ButtonStroke.Color = Color3.fromRGB(80, 255, 80)
     else
-        UIStroke.Color = Color3.fromRGB(255, 255, 255)
-        TargetPlayer = nil
+        AimButton.Text = "AIM\nOFF"
+        AimButton.TextColor3 = Color3.fromRGB(255, 80, 80)
+        ButtonStroke.Color = Color3.fromRGB(255, 80, 80)
     end
-end)
-
--- Credits
-my_section:AddLabel("Credits: @your_name")
-
--- Description
-my_section:AddParagraph("MM2 Aim Lock", "Aim lock for Innocent/Sheriff. Locks onto selected role.")
-
--- Toggle: Enable/Disable Aim Lock
-my_section:AddToggle("Enable Aim Lock", function(bool)
-    AimLockEnabled = bool
-    if bool then
-        UIStroke.Color = Color3.fromRGB(0, 255, 0)
-        if not IsLocalInLobby() then
-            TargetPlayer = FindTarget()
-        end
-    else
-        UIStroke.Color = Color3.fromRGB(255, 255, 255)
-        TargetPlayer = nil
-    end
-end)
-
--- Toggle: Enable/Disable Bindable Button
-my_section:AddToggle("Bindable Button", function(bool)
-    BindableButtonEnabled = bool
-    ToggleButton.Visible = bool
-end)
-
--- Toggle: Enable/Disable Wall Check
-my_section:AddToggle("Wall Check", function(bool)
-    WallCheckEnabled = bool
-    if WallCheckEnabled then
-        shared.Notify("Wall Check enabled", 2)
-    else
-        shared.Notify("Wall Check disabled", 2)
-    end
-end)
-
--- Dropdown: Target Role (Murderer or Sheriff)
-local roleDropdown = my_section:AddDropdown("Target Role", {"Murderer", "Sheriff"}, function(selected)
-    TargetRole = selected
-    TargetPlayer = nil -- Reset target when switching role
-    if AimLockEnabled and not IsLocalInLobby() then
-        TargetPlayer = FindTarget()
-    end
-end)
-
--- Dropdown: Head or Body
-local dropdown = my_section:AddDropdown("Target Part", {"Head", "Body"}, function(selected)
-    TargetPart = selected
-end)
-
--- Keybind: Toggle Aim Lock (default T)
-my_section:AddKeybind("Toggle Key", "T", function()
-    AimLockEnabled = not AimLockEnabled
-    if AimLockEnabled then
-        UIStroke.Color = Color3.fromRGB(0, 255, 0)
-        if not IsLocalInLobby() then
-            TargetPlayer = FindTarget()
-        end
-    else
-        UIStroke.Color = Color3.fromRGB(255, 255, 255)
-        TargetPlayer = nil
-    end
-end)
-
--- Check if local player is in lobby (Y 180-380 = round, else = lobby)
-function IsLocalInLobby()
-    local character = LocalPlayer.Character
-    if not character then return true end
-    
-    local root = character:FindFirstChild("HumanoidRootPart")
-    if not root then return true end
-    
-    local y = root.Position.Y
-    
-    if y >= 180 and y <= 380 then
-        return false -- Round
-    end
-    
-    return true -- Lobby
 end
 
--- Wall check: raycast from camera to target
-function IsTargetVisible(target)
-    if not target or not target.Character then return false end
-    
-    local targetPart = nil
-    if TargetPart == "Head" then
-        targetPart = target.Character:FindFirstChild("Head")
-    elseif TargetPart == "Body" then
-        targetPart = target.Character:FindFirstChild("HumanoidRootPart")
+-- Credits
+my_section:AddLabel("Credits: @anya_bts")
+
+-- Description
+my_section:AddParagraph("MM2 Aim Lock", "Auto-aim for Innocent role. Locks camera onto selected target.")
+
+-- Toggle: Enable Aim Lock
+my_section:AddToggle("Enable Aim Lock", function(bool)
+    AimLockEnabled = bool
+    UpdateButtonState()
+end)
+
+-- Dropdown: Target Role
+my_section:AddDropdown("Target Role", {"Murderer", "Sheriff"}, function(selected)
+    AimTarget = selected
+end)
+
+-- Dropdown: Target Part
+my_section:AddDropdown("Target Part", {"Head", "Body"}, function(selected)
+    if selected == "Head" then
+        AimPart = "Head"
+    else
+        AimPart = "HumanoidRootPart"
     end
+end)
+
+-- Toggle: Wall Check
+my_section:AddToggle("Wall Check", function(bool)
+    WallCheck = bool
+end)
+
+-- Toggle: Show Mobile Button
+my_section:AddToggle("Show Mobile Button", function(bool)
+    AimButton.Visible = bool
+end)
+
+-- Keybind
+my_section:AddKeybind("Toggle Key", "T", function()
+    AimLockEnabled = not AimLockEnabled
+    UpdateButtonState()
+end)
+
+-- Check if player is in game round
+local function IsInRound()
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return false end
+    local y = root.Position.Y
+    return (y >= 180 and y <= 380)
+end
+
+-- Raycast wall check
+local function IsVisible(targetChar)
+    if not targetChar then return false end
     
+    local targetPart = targetChar:FindFirstChild(AimPart)
     if not targetPart then return false end
     
-    local cameraPos = Camera.CFrame.Position
-    local targetPos = targetPart.Position
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Blacklist
+    params.FilterDescendantsInstances = {LocalPlayer.Character}
     
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
+    local origin = Camera.CFrame.Position
+    local direction = (targetPart.Position - origin)
+    local ray = workspace:Raycast(origin, direction.Unit * direction.Magnitude, params)
     
-    local raycastResult = workspace:Raycast(cameraPos, (targetPos - cameraPos).Unit * (targetPos - cameraPos).Magnitude, raycastParams)
-    
-    if raycastResult then
-        local hitInstance = raycastResult.Instance
-        if hitInstance:IsDescendantOf(target.Character) then
-            return true
-        else
-            return false
-        end
+    if ray then
+        return ray.Instance:IsDescendantOf(targetChar)
     end
-    
     return true
 end
 
--- Check if player has knife (Murderer)
-function HasKnife(player)
-    if not player or not player.Character then return false end
+-- Get tool from character or backpack
+local function GetTool(player, keywords)
+    if not player.Character then return nil end
     
-    for _, item in ipairs(player.Character:GetChildren()) do
-        if item:IsA("Tool") and (item.Name:lower():find("knife") or item.Name:lower():find("нож")) then
-            return true
-        end
-    end
-    
-    local backpack = player:FindFirstChild("Backpack")
-    if backpack then
-        for _, item in ipairs(backpack:GetChildren()) do
-            if item:IsA("Tool") and (item.Name:lower():find("knife") or item.Name:lower():find("нож")) then
-                return true
+    local function check(container)
+        for _, item in ipairs(container:GetChildren()) do
+            if item:IsA("Tool") then
+                local name = item.Name:lower()
+                for _, kw in ipairs(keywords) do
+                    if name:find(kw) then
+                        return item
+                    end
+                end
             end
         end
+        return nil
     end
     
-    return false
+    return check(player.Character) or (player.Backpack and check(player.Backpack))
 end
 
--- Check if player has gun (Sheriff)
-function HasGun(player)
-    if not player or not player.Character then return false end
+-- Find target based on role
+local function FindTarget()
+    local knifeKeywords = {"knife", "нож"}
+    local gunKeywords = {"gun", "пистолет", "револьвер", "revolver", "sheriff", "шериф"}
     
-    for _, item in ipairs(player.Character:GetChildren()) do
-        if item:IsA("Tool") and (item.Name:lower():find("gun") or item.Name:lower():find("пистолет") or item.Name:lower():find("револьвер") or item.Name:lower():find("revolver")) then
-            return true
-        end
-    end
+    local bestTarget = nil
+    local bestDistance = math.huge
     
-    local backpack = player:FindFirstChild("Backpack")
-    if backpack then
-        for _, item in ipairs(backpack:GetChildren()) do
-            if item:IsA("Tool") and (item.Name:lower():find("gun") or item.Name:lower():find("пистолет") or item.Name:lower():find("револьвер") or item.Name:lower():find("revolver")) then
-                return true
-            end
-        end
-    end
-    
-    return false
-end
-
--- Find target based on TargetRole setting
-function FindTarget()
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
-            local humanoid = player.Character:FindFirstChild("Humanoid")
-            if humanoid and humanoid.Health > 0 then
-                local isValidTarget = false
+            local hum = player.Character:FindFirstChild("Humanoid")
+            if hum and hum.Health > 0 then
                 
-                if TargetRole == "Murderer" then
-                    isValidTarget = HasKnife(player)
-                elseif TargetRole == "Sheriff" then
-                    isValidTarget = HasGun(player)
-                end
-                
-                if isValidTarget then
-                    if WallCheckEnabled then
-                        if IsTargetVisible(player) then
-                            return player
-                        end
-                    else
-                        return player
-                    end
-                end
-            end
-        end
-    end
-    return nil
-end
-
--- Get target position
-function GetTargetPosition(player)
-    if not player or not player.Character then return nil end
-    
-    if TargetPart == "Head" then
-        local head = player.Character:FindFirstChild("Head")
-        if head then return head.Position end
-    elseif TargetPart == "Body" then
-        local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then return hrp.Position end
-    end
-    
-    return nil
-end
-
--- Validate if player matches target role
-function IsValidRole(player)
-    if not player or not player.Character then return false end
-    
-    if TargetRole == "Murderer" then
-        return HasKnife(player)
-    elseif TargetRole == "Sheriff" then
-        return HasGun(player)
-    end
-    
-    return false
-end
-
--- Main loop
-RunService.RenderStepped:Connect(function()
-    local inLobby = IsLocalInLobby()
-    
-    if inLobby then
-        return
-    end
-    
-    if not AimLockEnabled then return end
-    
-    if WallCheckEnabled and TargetPlayer then
-        if not IsTargetVisible(TargetPlayer) then
-            TargetPlayer = nil
-        end
-    end
-    
-    local validTarget = false
-    if TargetPlayer and TargetPlayer.Character then
-        local hum = TargetPlayer.Character:FindFirstChild("Humanoid")
-        if hum and hum.Health > 0 then
-            if IsValidRole(TargetPlayer) then
-                if WallCheckEnabled then
-                    if IsTargetVisible(TargetPlayer) then
-                        validTarget = true
-                    end
+                local valid = false
+                if AimTarget == "Murderer" then
+                    valid = GetTool(player, knifeKeywords) ~= nil
                 else
-                    validTarget = true
+                    valid = GetTool(player, gunKeywords) ~= nil
+                end
+                
+                if valid then
+                    if WallCheck and not IsVisible(player.Character) then
+                        continue
+                    end
+                    
+                    local root = player.Character:FindFirstChild("HumanoidRootPart")
+                    if root then
+                        local dist = (Camera.CFrame.Position - root.Position).Magnitude
+                        if dist < bestDistance then
+                            bestDistance = dist
+                            bestTarget = player
+                        end
+                    end
                 end
             end
         end
     end
     
-    if not validTarget then
-        TargetPlayer = FindTarget()
-    end
+    return bestTarget
+end
+
+-- Main aim loop
+RunService.RenderStepped:Connect(function()
+    if not AimLockEnabled then return end
+    if not IsInRound() then return end
     
-    if TargetPlayer then
-        local targetPos = GetTargetPosition(TargetPlayer)
-        if targetPos then
-            Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPos)
+    local target = FindTarget()
+    
+    if target and target.Character then
+        local part = target.Character:FindFirstChild(AimPart)
+        if part then
+            local lookAt = CFrame.new(Camera.CFrame.Position, part.Position)
+            Camera.CFrame = lookAt
         end
     end
 end)
 
--- Reset target on respawn
-LocalPlayer.CharacterAdded:Connect(function()
-    TargetPlayer = nil
+-- Cleanup on death
+LocalPlayer.CharacterAdded:Connect(function(char)
+    -- Nothing needed, FindTarget handles nil characters
 end)
 
-print("MM2 Aim Lock loaded. Targets: Murderer & Sheriff. Round: Y 180-380.")
+print("[MM2 Aim Lock] Loaded successfully")
