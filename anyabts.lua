@@ -1,9 +1,10 @@
--- MM2 Aim Lock for OverdriveH with BindableButtons
+-- MM2 Aim Lock for OverdriveH with BindableButtons + Mouse Move
 local shared = odh_shared_plugins
 local my_section = shared.AddSection("MM2 Aim Lock")
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
@@ -253,23 +254,73 @@ function BindableButtons.DeleteBButton(id)
     end
 end
 
+-- ==================== MOUSE MOVE AIM ====================
+
+local MouseMoveAim = {}
+MouseMoveAim.__index = MouseMoveAim
+
+function MouseMoveAim.new(sensitivity, smoothing)
+    local self = setmetatable({}, MouseMoveAim)
+    self.Sensitivity = sensitivity or 1
+    self.Smoothing = smoothing or 0.5
+    self.CurrentDeltaX = 0
+    self.CurrentDeltaY = 0
+    return self
+end
+
+function MouseMoveAim:MoveToPosition(targetPos, cameraPos, cameraCFrame)
+    local direction = (targetPos - cameraPos).Unit
+    local lookVector = cameraCFrame.LookVector
+    
+    local dotProduct = lookVector:Dot(direction)
+    if dotProduct > 0.9999 then
+        self.CurrentDeltaX = 0
+        self.CurrentDeltaY = 0
+        return
+    end
+    
+    local rightVector = cameraCFrame.RightVector
+    local upVector = cameraCFrame.UpVector
+    
+    local deltaX = direction:Dot(rightVector)
+    local deltaY = direction:Dot(upVector)
+    
+    deltaX = math.clamp(deltaX, -1, 1)
+    deltaY = math.clamp(deltaY, -1, 1)
+    
+    local angleX = math.asin(deltaX)
+    local angleY = math.asin(deltaY)
+    
+    local pixelX = (angleX / math.pi) * 180 * 6 * self.Sensitivity
+    local pixelY = (angleY / math.pi) * 180 * 4 * self.Sensitivity
+    
+    self.CurrentDeltaX = self.CurrentDeltaX + (pixelX - self.CurrentDeltaX) * self.Smoothing
+    self.CurrentDeltaY = self.CurrentDeltaY + (pixelY - self.CurrentDeltaY) * self.Smoothing
+    
+    mousemoverel(self.CurrentDeltaX, self.CurrentDeltaY)
+end
+
 -- ==================== AIM LOCK LOGIC ====================
 
 -- Settings
 local AimLockEnabled = false
-local AimTarget = "Murderer" -- "Murderer", "Sheriff", or player name
+local AimTarget = "Murderer"
 local AimPart = "Head"
 local WallCheck = false
 local BindButtonEnabled = false
 local AimLockBind = nil
-local TargetPlayerName = nil -- nil means use role-based targeting
+local TargetPlayerName = nil
 local playerListDropdown = nil
+local Smoothing = 0.4
+local Sensitivity = 1.5
+
+local AimMover = MouseMoveAim.new(Sensitivity, Smoothing)
 
 -- Credits
 my_section:AddLabel("Credits: @anya_bts")
 
 -- Description
-my_section:AddParagraph("MM2 Aim Lock", "Auto-aim for Innocent role. Locks camera onto selected target.")
+my_section:AddParagraph("MM2 Aim Lock", "Auto-aim for Innocent role. Uses mouse movement (works without Shift Lock).")
 
 -- Toggle: Enable Aim Lock
 my_section:AddToggle("Enable Aim Lock", function(bool)
@@ -341,10 +392,8 @@ playerListDropdown = my_section:AddDropdown("Target Player", {"None (Use Role)"}
     end
 end)
 
--- Initial population
 UpdatePlayerList()
 
--- Update player list every 30 seconds
 task.spawn(function()
     while true do
         task.wait(30)
@@ -352,7 +401,6 @@ task.spawn(function()
     end
 end)
 
--- Listen for players joining/leaving to update list
 Players.PlayerAdded:Connect(function()
     task.wait(1)
     UpdatePlayerList()
@@ -375,6 +423,18 @@ my_section:AddDropdown("Target Part", {"Head", "Body"}, function(selected)
     else
         AimPart = "HumanoidRootPart"
     end
+end)
+
+-- Slider: Smoothing
+my_section:AddSlider("Smoothing", 0, 100, 40, function(value)
+    Smoothing = value / 100
+    AimMover.Smoothing = Smoothing
+end)
+
+-- Slider: Sensitivity
+my_section:AddSlider("Sensitivity", 0, 500, 150, function(value)
+    Sensitivity = value / 100
+    AimMover.Sensitivity = Sensitivity
 end)
 
 -- Toggle: Wall Check
@@ -442,7 +502,6 @@ local function GetTool(player, keywords)
 end
 
 local function FindTarget()
-    -- If a specific player is selected, target them
     if TargetPlayerName then
         local targetPlayer = Players:FindFirstChild(TargetPlayerName)
         if targetPlayer and targetPlayer.Character then
@@ -457,7 +516,6 @@ local function FindTarget()
         return nil
     end
     
-    -- Otherwise use role-based targeting
     local knifeKeywords = {"knife", "нож"}
     local gunKeywords = {"gun", "пистолет", "револьвер", "revolver", "sheriff", "шериф"}
     
@@ -499,7 +557,7 @@ end
 
 -- ==================== MAIN LOOP ====================
 
-RunService.RenderStepped:Connect(function()
+RunService.RenderStepped:Connect(function(deltaTime)
     if not AimLockEnabled then return end
     if not IsInRound() then return end
     
@@ -508,10 +566,13 @@ RunService.RenderStepped:Connect(function()
     if target and target.Character then
         local part = target.Character:FindFirstChild(AimPart)
         if part then
-            local lookAt = CFrame.new(Camera.CFrame.Position, part.Position)
-            Camera.CFrame = lookAt
+            local cameraPos = Camera.CFrame.Position
+            local targetPos = part.Position
+            local cameraCFrame = Camera.CFrame
+            
+            AimMover:MoveToPosition(targetPos, cameraPos, cameraCFrame)
         end
     end
 end)
 
-print("[MM2 Aim Lock] Loaded successfully with BindableButtons + Player Targeting")
+print("[MM2 Aim Lock] Loaded successfully with Mouse Move Aim + BindableButtons")
