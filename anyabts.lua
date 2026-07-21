@@ -1,4 +1,4 @@
--- MM2 Aim Lock for OverdriveH with BindableButtons
+-- MM2 Aim Lock for OverdriveH with BindableButtons + Burger + Prediction + Smoothing + Team Check + Button Size
 local shared = odh_shared_plugins
 local my_section = shared.AddSection("MM2 Aim Lock")
 
@@ -143,14 +143,14 @@ local function MakeDraggable(gui, maid, ripple, sound, clickFunc)
     end))
 end
 
-function BindableButtons.AddBButton(id, text, onFunc, offFunc)
+function BindableButtons.AddBButton(id, text, onFunc, offFunc, customSize)
     if BindableButtons.Buttons[id] then return BindableButtons.Buttons[id]:FindFirstChild("BindValue") end
     
     local buttonMaid = Maid.new()
     local camera = workspace.CurrentCamera
     local screen = camera.ViewportSize
     
-    local buttonSizeY = 0.11
+    local buttonSizeY = customSize or 0.11
     local widthScale = buttonSizeY * (screen.Y / screen.X)
     
     local xPos = 0.1 + ((BindableButtons.Count % 8) * (widthScale + 0.005))
@@ -235,7 +235,9 @@ function BindableButtons.AddBButton(id, text, onFunc, offFunc)
     BindableButtons.Buttons[id] = ImageButton
     BindableButtons.Maids[id] = buttonMaid
     BindableButtons.Count = BindableButtons.Count + 1
-    return BindValue
+    
+    -- Store reference to the button for resizing
+    return BindValue, ImageButton
 end
 
 function BindableButtons.SetShape(id, shape)
@@ -253,28 +255,68 @@ function BindableButtons.DeleteBButton(id)
     end
 end
 
+function BindableButtons.SetSize(id, sizeY)
+    local btn = BindableButtons.Buttons[id]
+    if not btn then return end
+    
+    local screen = workspace.CurrentCamera.ViewportSize
+    local widthScale = sizeY * (screen.Y / screen.X)
+    btn.Size = __UD2(widthScale, 0, sizeY, 0)
+end
+
 -- ==================== AIM LOCK LOGIC ====================
 
 -- Settings
 local AimLockEnabled = false
-local AimTarget = "Murderer" -- "Murderer", "Sheriff", or player name
+local AimTarget = "Murderer"
 local AimPart = "Head"
 local WallCheck = false
 local BindButtonEnabled = false
 local AimLockBind = nil
-local TargetPlayerName = nil -- nil means use role-based targeting
+local AimLockButton = nil
+local TargetPlayerName = nil
 local playerListDropdown = nil
+local ButtonSize = 0.11 -- Default button size
+
+-- New settings
+local AimPrediction = 0 -- Prediction amount (0-10)
+local AimSmoothing = 0 -- Smoothing amount (0-1)
+local TeamCheckEnabled = false
+
+-- Velocity tracking for prediction
+local TargetVelocity = Vector3.zero
+local LastTargetPosition = nil
+local LastUpdateTime = 0
 
 -- Burger stuff
 local BurgerEnabled = false
-local BurgerGui = nil
 local BurgerSound = nil
+local BurgerInitialized = false
+
+-- Функция тряски экрана
+local function ShakeCamera(intensity, duration)
+    local startTime = tick()
+    
+    task.spawn(function()
+        while tick() - startTime < duration and BurgerEnabled do
+            local decay = 1 - ((tick() - startTime) / duration)
+            local offset = Vector3.new(
+                math.random(-100, 100) * intensity * decay / 100,
+                math.random(-100, 100) * intensity * decay / 100,
+                0
+            )
+            
+            Camera.CFrame = Camera.CFrame * CFrame.new(offset)
+            task.wait(0.01)
+        end
+    end)
+end
 
 -- Credits
 my_section:AddLabel("Credits: @anya_bts")
 
 -- Description
-my_section:AddParagraph("MM2 Aim Lock", "Auto-aim for Innocent role. Locks camera onto selected target.")
+my_section:AddParagraph("MM2 Aim Lock", "Advanced aim lock with prediction, smoothing, and team check.")
 
 -- Toggle: Enable Aim Lock
 my_section:AddToggle("Enable Aim Lock", function(bool)
@@ -290,7 +332,7 @@ my_section:AddToggle("Show Bind Button", function(bool)
     
     if bool then
         if not AimLockBind then
-            AimLockBind = BindableButtons.AddBButton(
+            AimLockBind, AimLockButton = BindableButtons.AddBButton(
                 "MM2_AimLock",
                 "AIM LOCK",
                 function()
@@ -300,7 +342,8 @@ my_section:AddToggle("Show Bind Button", function(bool)
                 function()
                     AimLockEnabled = false
                     shared.Notify("Aim Lock: OFF", 2)
-                end
+                end,
+                ButtonSize
             )
             AimLockBind.Changed:Connect(function(val)
                 AimLockEnabled = val
@@ -319,6 +362,14 @@ my_section:AddToggle("Show Bind Button", function(bool)
                 btn.Visible = false
             end
         end
+    end
+end)
+
+-- Slider: Button Size
+my_section:AddSlider("Button Size", 5, 30, 11, function(value)
+    ButtonSize = value / 100
+    if AimLockButton then
+        BindableButtons.SetSize("MM2_AimLock", ButtonSize)
     end
 end)
 
@@ -346,10 +397,8 @@ playerListDropdown = my_section:AddDropdown("Target Player", {"None (Use Role)"}
     end
 end)
 
--- Initial population
 UpdatePlayerList()
 
--- Update player list every 30 seconds
 task.spawn(function()
     while true do
         task.wait(30)
@@ -357,7 +406,6 @@ task.spawn(function()
     end
 end)
 
--- Listen for players joining/leaving to update list
 Players.PlayerAdded:Connect(function()
     task.wait(1)
     UpdatePlayerList()
@@ -382,6 +430,26 @@ my_section:AddDropdown("Target Part", {"Head", "Body"}, function(selected)
     end
 end)
 
+-- Slider: Aim Prediction
+my_section:AddSlider("Aim Prediction", 0, 100, 0, function(value)
+    AimPrediction = value / 100
+end)
+
+-- Slider: Aim Smoothing
+my_section:AddSlider("Aim Smoothing", 0, 100, 0, function(value)
+    AimSmoothing = value / 100
+end)
+
+-- Toggle: Team Check
+my_section:AddToggle("Team Check", function(bool)
+    TeamCheckEnabled = bool
+    if bool then
+        shared.Notify("Team Check: ON - Won't target teammates", 2)
+    else
+        shared.Notify("Team Check: OFF", 2)
+    end
+end)
+
 -- Toggle: Wall Check
 my_section:AddToggle("Wall Check", function(bool)
     WallCheck = bool
@@ -397,11 +465,9 @@ end)
 
 -- Toggle: Burger. (very OP)
 my_section:AddToggle("Burger. (very OP)", function(bool)
-    -- Игнорируем первый вызов если он был автоматическим
     if not BurgerInitialized then
         BurgerInitialized = true
         if bool then
-            -- Если тогл включился сам — выключаем
             BurgerEnabled = false
             shared.Notify("Burger ready. Toggle to activate.", 2)
         end
@@ -411,7 +477,6 @@ my_section:AddToggle("Burger. (very OP)", function(bool)
     BurgerEnabled = bool
     
     if bool then
-        -- Создаём и запускаем музыку
         local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
         if playerGui then
             if BurgerSound then
@@ -426,7 +491,6 @@ my_section:AddToggle("Burger. (very OP)", function(bool)
             BurgerSound:Play()
         end
         
-        -- Запускаем бесконечную тряску
         task.spawn(function()
             while BurgerEnabled do
                 ShakeCamera(2, 0.3)
@@ -436,7 +500,6 @@ my_section:AddToggle("Burger. (very OP)", function(bool)
         
         shared.Notify("🍔 BURGER MODE ACTIVATED 🍔", 3)
     else
-        -- Выключаем музыку
         if BurgerSound then
             pcall(function()
                 BurgerSound:Stop()
@@ -500,13 +563,31 @@ local function GetTool(player, keywords)
     return check(player.Character) or (player.Backpack and check(player.Backpack))
 end
 
+local function IsSameTeam(player1, player2)
+    -- MM2 specific: Innocents and Sheriff are on the same team
+    -- Murderer is alone
+    if not player1 or not player2 then return false end
+    
+    local knifeKeywords = {"knife", "нож"}
+    
+    local p1HasKnife = GetTool(player1, knifeKeywords) ~= nil
+    local p2HasKnife = GetTool(player2, knifeKeywords) ~= nil
+    
+    -- If both have knives (both murderers) or both don't have knives (innocent/sheriff)
+    return p1HasKnife == p2HasKnife
+end
+
 local function FindTarget()
-    -- If a specific player is selected, target them
     if TargetPlayerName then
         local targetPlayer = Players:FindFirstChild(TargetPlayerName)
         if targetPlayer and targetPlayer.Character then
             local hum = targetPlayer.Character:FindFirstChild("Humanoid")
             if hum and hum.Health > 0 then
+                -- Team check
+                if TeamCheckEnabled and IsSameTeam(LocalPlayer, targetPlayer) then
+                    return nil
+                end
+                
                 if WallCheck and not IsVisible(targetPlayer.Character) then
                     return nil
                 end
@@ -516,7 +597,6 @@ local function FindTarget()
         return nil
     end
     
-    -- Otherwise use role-based targeting
     local knifeKeywords = {"knife", "нож"}
     local gunKeywords = {"gun", "пистолет", "револьвер", "revolver", "sheriff", "шериф"}
     
@@ -528,6 +608,11 @@ local function FindTarget()
             local hum = player.Character:FindFirstChild("Humanoid")
             if hum and hum.Health > 0 then
                 
+                -- Team check
+                if TeamCheckEnabled and IsSameTeam(LocalPlayer, player) then
+                    continue
+                end
+                
                 local valid = false
                 if AimTarget == "Murderer" then
                     valid = GetTool(player, knifeKeywords) ~= nil
@@ -538,7 +623,7 @@ local function FindTarget()
                 if valid then
                     if WallCheck and not IsVisible(player.Character) then
                         -- skip
-                    else
+        else
                         local root = player.Character:FindFirstChild("HumanoidRootPart")
                         if root then
                             local dist = (Camera.CFrame.Position - root.Position).Magnitude
@@ -556,21 +641,65 @@ local function FindTarget()
     return bestTarget
 end
 
+local function GetPredictedPosition(target, part)
+    if not target or not target.Character then return nil end
+    
+    local targetPart = target.Character:FindFirstChild(part)
+    if not targetPart then return nil end
+    
+    local currentPos = targetPart.Position
+    
+    -- Calculate velocity
+    local currentTime = tick()
+    local velocity = Vector3.zero
+    
+    if LastTargetPosition and LastUpdateTime > 0 then
+        local timeDelta = currentTime - LastUpdateTime
+        if timeDelta > 0 then
+            velocity = (currentPos - LastTargetPosition) / timeDelta
+        end
+    end
+    
+    LastTargetPosition = currentPos
+    LastUpdateTime = currentTime
+    
+    -- Apply prediction
+    local predictedPos = currentPos + (velocity * AimPrediction)
+    
+    return predictedPos
+end
+
 -- ==================== MAIN LOOP ====================
 
-RunService.RenderStepped:Connect(function()
+RunService.RenderStepped:Connect(function(deltaTime)
     if not AimLockEnabled then return end
     if not IsInRound() then return end
     
     local target = FindTarget()
     
     if target and target.Character then
-        local part = target.Character:FindFirstChild(AimPart)
-        if part then
-            local lookAt = CFrame.new(Camera.CFrame.Position, part.Position)
-            Camera.CFrame = lookAt
+        local targetPos = nil
+        
+        if AimPrediction > 0 then
+            targetPos = GetPredictedPosition(target, AimPart)
+        else
+            local part = target.Character:FindFirstChild(AimPart)
+            if part then
+                targetPos = part.Position
+            end
+        end
+        
+        if targetPos then
+            local cameraPos = Camera.CFrame.Position
+            local desiredCFrame = CFrame.new(cameraPos, targetPos)
+            
+            if AimSmoothing > 0 then
+                Camera.CFrame = Camera.CFrame:Lerp(desiredCFrame, AimSmoothing)
+            else
+                Camera.CFrame = desiredCFrame
+            end
         end
     end
 end)
 
-print("[MM2 Aim Lock] Loaded successfully with BindableButtons + Player Targeting + BURGER")
+print("[MM2 Aim Lock] Loaded with Prediction + Smoothing + Team Check + Button Size + BURGER")
