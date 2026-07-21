@@ -694,6 +694,6 @@ if not valid then
             Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, Smoothness)
         end
     end
-end)
+end
 
 print("[MM2 Aim Lock] Loaded with Prediction + Smoothing + Team Check + Button Size + BURGER")
