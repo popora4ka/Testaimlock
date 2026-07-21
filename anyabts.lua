@@ -681,27 +681,34 @@ RunService.RenderStepped:Connect(function()
         return
     end
 
-    local part = target.Character:FindFirstChild(AimPart)
-    if not part then
+    local aimPart = target.Character:FindFirstChild(AimPart)
+    if not aimPart then
         return
     end
 
-    local targetPos = (AimPrediction > 0)
-        and GetPredictedPosition(target, AimPart)
-        or part.Position
+    local targetPos
+    if AimPrediction > 0 then
+        targetPos = GetPredictedPosition(target, AimPart)
+    else
+        targetPos = aimPart.Position
+    end
 
     if not targetPos then
         return
     end
 
-    local camPos = Camera.CFrame.Position
-    local newCF = CFrame.lookAt(camPos, targetPos)
+    local targetCFrame = CFrame.new(
+        Camera.CFrame.Position,
+        targetPos
+    )
 
     if AimSmoothing > 0 then
-        Camera.CFrame = Camera.CFrame:Lerp(newCF, AimSmoothing)
+        Camera.CFrame = Camera.CFrame:Lerp(
+            targetCFrame,
+            math.clamp(AimSmoothing, 0, 1)
+        )
     else
-        Camera.CFrame = newCF
+        Camera.CFrame = targetCFrame
     end
 end)
-
 print("[MM2 Aim Lock] Loaded with Prediction + Smoothing + Team Check + Button Size + BURGER")
