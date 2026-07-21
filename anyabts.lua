@@ -1,4 +1,4 @@
--- MM2 Aim Lock for OverdriveH with BindableButtons + All Features
+-- MM2 Aim Lock for OverdriveH with BindableButtons + V2 Camera Logic + All Features
 local shared = odh_shared_plugins
 local my_section = shared.AddSection("MM2 Aim Lock")
 
@@ -277,23 +277,18 @@ local TargetPlayerName = nil
 local playerListDropdown = nil
 local ButtonSize = 0.11
 
--- New settings
-local AimPrediction = 0.145
-local AimSmoothing = 0.65
+-- V2 Settings
+local PredictionLevel = 0.145
+local Smoothness = 0.65
 local TeamCheckEnabled = false
-
--- Оптимизация
-local LastSearchTime = 0
 local TargetPlayer = nil
-local LastTargetPosition = nil
-local LastUpdateTime = 0
+local LastSearchTime = 0
 
 -- Burger stuff
 local BurgerEnabled = false
 local BurgerSound = nil
 local BurgerInitialized = false
 
--- Функция тряски экрана
 local function ShakeCamera(intensity, duration)
     local startTime = tick()
     
@@ -316,7 +311,7 @@ end
 my_section:AddLabel("Credits: @anya_bts")
 
 -- Description
-my_section:AddParagraph("MM2 Aim Lock", "Advanced aim lock with prediction, smoothing, team check, and camera optimization.")
+my_section:AddParagraph("MM2 Aim Lock", "Advanced aim lock with V2 camera logic + all features.")
 
 -- Toggle: Enable Aim Lock
 my_section:AddToggle("Enable Aim Lock", function(bool)
@@ -373,7 +368,6 @@ my_section:AddSlider("Button Size", 5, 30, 11, function(value)
     end
 end)
 
--- Function to update player list
 local function UpdatePlayerList()
     local playerNames = {"None (Use Role)"}
     
@@ -432,22 +426,17 @@ end)
 
 -- Slider: Aim Prediction
 my_section:AddSlider("Aim Prediction", 0, 100, 15, function(value)
-    AimPrediction = value / 100
+    PredictionLevel = value / 100
 end)
 
 -- Slider: Aim Smoothing
 my_section:AddSlider("Aim Smoothing", 0, 100, 65, function(value)
-    AimSmoothing = value / 100
+    Smoothness = value / 100
 end)
 
 -- Toggle: Team Check
 my_section:AddToggle("Team Check", function(bool)
     TeamCheckEnabled = bool
-    if bool then
-        shared.Notify("Team Check: ON - Won't target teammates", 2)
-    else
-        shared.Notify("Team Check: OFF", 2)
-    end
 end)
 
 -- Toggle: Wall Check
@@ -523,24 +512,15 @@ local function IsInRound()
     return (y >= 180 and y <= 380)
 end
 
-local function IsVisible(targetChar)
-    if not targetChar then return false end
-    
-    local targetPart = targetChar:FindFirstChild(AimPart)
-    if not targetPart then return false end
-    
-    local params = RaycastParams.new()
-    params.FilterType = Enum.RaycastFilterType.Blacklist
-    params.FilterDescendantsInstances = {LocalPlayer.Character}
-    
-    local origin = Camera.CFrame.Position
-    local direction = (targetPart.Position - origin)
-    local ray = workspace:Raycast(origin, direction.Unit * direction.Magnitude, params)
-    
-    if ray then
-        return ray.Instance:IsDescendantOf(targetChar)
-    end
-    return true
+local function IsVisible(target)
+    if not target or not target.Character then return false end
+    local p = target.Character:FindFirstChild(AimPart)
+    if not p then return false end
+    local pr = RaycastParams.new()
+    pr.FilterDescendantsInstances = {LocalPlayer.Character}
+    pr.FilterType = Enum.RaycastFilterType.Blacklist
+    local res = workspace:Raycast(Camera.CFrame.Position, p.Position - Camera.CFrame.Position, pr)
+    return not res or res.Instance:IsDescendantOf(target.Character)
 end
 
 local function GetTool(player, keywords)
@@ -565,12 +545,9 @@ end
 
 local function IsSameTeam(player1, player2)
     if not player1 or not player2 then return false end
-    
     local knifeKeywords = {"knife", "нож"}
-    
     local p1HasKnife = GetTool(player1, knifeKeywords) ~= nil
     local p2HasKnife = GetTool(player2, knifeKeywords) ~= nil
-    
     return p1HasKnife == p2HasKnife
 end
 
@@ -583,8 +560,7 @@ local function FindTarget()
                 if TeamCheckEnabled and IsSameTeam(LocalPlayer, targetPlayer) then
                     return nil
                 end
-                
-                if WallCheck and not IsVisible(targetPlayer.Character) then
+                if WallCheck and not IsVisible(targetPlayer) then
                     return nil
                 end
                 return targetPlayer
@@ -605,7 +581,7 @@ local function FindTarget()
             if hum and hum.Health > 0 then
                 
                 if TeamCheckEnabled and IsSameTeam(LocalPlayer, player) then
-                    -- skip teammate
+                    -- skip
                 else
                     local valid = false
                     if AimTarget == "Murderer" then
@@ -615,7 +591,7 @@ local function FindTarget()
                     end
                     
                     if valid then
-                        if WallCheck and not IsVisible(player.Character) then
+                        if WallCheck and not IsVisible(player) then
                             -- skip
                         else
                             local root = player.Character:FindFirstChild("HumanoidRootPart")
@@ -636,66 +612,41 @@ local function FindTarget()
     return bestTarget
 end
 
--- ==================== MAIN LOOP (исправленный) ====================
-
+-- ==================== MAIN LOOP  ====================
 RunService.RenderStepped:Connect(function()
-    if not AimLockEnabled then return end
-    if not IsInRound() then return end
+    if not AimLockEnabled or IsInRound() == false then return end
     
-    -- Поиск цели раз в 0.5 секунд или если цели нет
-    local currentTime = tick()
-    if not TargetPlayer or currentTime - LastSearchTime > 0.5 then
-        local newTarget = FindTarget()
-        if newTarget then
-            TargetPlayer = newTarget
-        end
-        LastSearchTime = currentTime
+    local valid = TargetPlayer and TargetPlayer.Character and TargetPlayer.Character:FindFirstChild("Humanoid") and TargetPlayer.Character.Humanoid.Health > 0
+    
+    if WallCheck and valid and not IsVisible(TargetPlayer) then
+        valid = false
     end
     
-    -- Проверка валидности текущей цели
-    if TargetPlayer then
-        local valid = false
-        if TargetPlayer.Character then
-            local hum = TargetPlayer.Character:FindFirstChild("Humanoid")
-            if hum and hum.Health > 0 then
-                if WallCheck then
-                    valid = IsVisible(TargetPlayer)
-                else
-                    valid = true
-                end
-            end
-        end
-        
-        if not valid then
-            TargetPlayer = nil
+    if not valid then
+        TargetPlayer = nil
+        local currentTime = os.clock()
+        if currentTime - LastSearchTime > 0.5 then
+            TargetPlayer = FindTarget()
+            LastSearchTime = currentTime
         end
     end
     
-    -- Наведение на цель
     if TargetPlayer and TargetPlayer.Character then
-        local targetPart = TargetPlayer.Character:FindFirstChild(AimPart)
+        local targetNode = TargetPlayer.Character:FindFirstChild(AimPart)
         
-        if targetPart then
-            local currentPos = targetPart.Position
-            local predictedPos = currentPos
-            
-            -- Расчёт скорости для упреждения
-            if AimPrediction > 0 and LastTargetPosition then
-                local velocity = (currentPos - LastTargetPosition) / 0.015 -- примерно 1 кадр
-                predictedPos = currentPos + Vector3.new(velocity.X, velocity.Y * 0.5, velocity.Z) * AimPrediction
-            end
-            
-            LastTargetPosition = currentPos
+        if targetNode then
+            local targetVelocity = targetNode.AssemblyLinearVelocity
+            local predictedPos = targetNode.Position + Vector3.new(targetVelocity.X, targetVelocity.Y * 0.5, targetVelocity.Z) * PredictionLevel
             
             local targetCFrame = CFrame.new(Camera.CFrame.Position, predictedPos)
             
-            if AimSmoothing > 0 then
-                Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, AimSmoothing)
-            else
-                Camera.CFrame = targetCFrame
-            end
+            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, Smoothness)
         end
     end
 end)
 
-print("[MM2 Aim Lock] Loaded with ALL features: Prediction + Smoothing + Team Check + Button Size + Camera Optimization + BURGER")
+LocalPlayer.CharacterAdded:Connect(function()
+    TargetPlayer = nil
+end)
+
+print("[MM2 Aim Lock] Loaded with V2 Camera Logic + All Features")
