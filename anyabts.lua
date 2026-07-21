@@ -670,36 +670,30 @@ local function GetPredictedPosition(target, part)
 end
 
 -- ==================== MAIN LOOP ====================
-
-RunService.RenderStepped:Connect(function()
-    if not AimLockEnabled or not IsInRound() then
-        return
+if not valid then 
+        TargetPlayer = nil
+        local currentTime = os.clock()
+        if currentTime - LastSearchTime > 0.5 then
+            TargetPlayer = FindMurderer()
+            LastSearchTime = currentTime
+        end
     end
-
-    local target = FindTarget()
-    if not target or not target.Character then
-        return
-    end
-
-    local part = target.Character:FindFirstChild(AimPart)
-    if not part then
-        return
-    end
-
-    local targetPos = (AimPrediction > 0)
-        and GetPredictedPosition(target, AimPart)
-        or part.Position
-
-    if not targetPos then
-        return
-    end
-
-    local targetCFrame = CFrame.new(Camera.CFrame.Position, targetPos)
-
-    if AimSmoothing > 0 then
-        Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, math.clamp(AimSmoothing, 0, 1))
-    else
-        Camera.CFrame = targetCFrame
+    
+    if TargetPlayer and TargetPlayer.Character then
+        local targetNode = TargetPlayer.Character:FindFirstChild(TargetPart)
+        
+        if targetNode then
+            -- Высчитываем скорость для упреждения
+            local targetVelocity = targetNode.AssemblyLinearVelocity
+            -- Слегка занижаем Y упреждение, чтобы прицел не улетал в космос при прыжке
+            local predictedPos = targetNode.Position + Vector3.new(targetVelocity.X, targetVelocity.Y * 0.5, targetVelocity.Z) * PredictionLevel
+            
+            local targetCFrame = CFrame.new(Camera.CFrame.Position, predictedPos)
+            
+            -- Плавная наводка (Lerp)
+            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, Smoothness)
+        end
     end
 end)
+
 print("[MM2 Aim Lock] Loaded with Prediction + Smoothing + Team Check + Button Size + BURGER")
