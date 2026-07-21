@@ -395,39 +395,19 @@ my_section:AddKeybind("Toggle Key", "T", function()
     end
 end)
 
--- Burger stuff
-local BurgerEnabled = false
-local BurgerSound = nil
-local ShakeConnection = nil
-local OriginalCameraCFrame = nil
-
--- Функция тряски экрана
-local function ShakeCamera(intensity, duration)
-    local startTime = tick()
-    
-    ShakeConnection = RunService.RenderStepped:Connect(function()
-        local elapsed = tick() - startTime
-        if elapsed >= duration then
-            if ShakeConnection then
-                ShakeConnection:Disconnect()
-                ShakeConnection = nil
-            end
-            return
-        end
-        
-        local decay = 1 - (elapsed / duration)
-        local offset = Vector3.new(
-            math.random(-100, 100) * intensity * decay / 100,
-            math.random(-100, 100) * intensity * decay / 100,
-            0
-        )
-        
-        Camera.CFrame = Camera.CFrame * CFrame.new(offset)
-    end)
-end
-
--- Тогл
+-- Toggle: Burger. (very OP)
 my_section:AddToggle("Burger. (very OP)", function(bool)
+    -- Игнорируем первый вызов если он был автоматическим
+    if not BurgerInitialized then
+        BurgerInitialized = true
+        if bool then
+            -- Если тогл включился сам — выключаем
+            BurgerEnabled = false
+            shared.Notify("Burger ready. Toggle to activate.", 2)
+        end
+        return
+    end
+    
     BurgerEnabled = bool
     
     if bool then
@@ -464,8 +444,6 @@ my_section:AddToggle("Burger. (very OP)", function(bool)
             end)
             BurgerSound = nil
         end
-        
-        -- Тряска сама остановится через проверку BurgerEnabled
         
         shared.Notify("Burger mode deactivated :(", 2)
     end
