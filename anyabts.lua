@@ -681,32 +681,23 @@ RunService.RenderStepped:Connect(function()
         return
     end
 
-    local aimPart = target.Character:FindFirstChild(AimPart)
-    if not aimPart then
+    local part = target.Character:FindFirstChild(AimPart)
+    if not part then
         return
     end
 
-    local targetPos
-    if AimPrediction > 0 then
-        targetPos = GetPredictedPosition(target, AimPart)
-    else
-        targetPos = aimPart.Position
-    end
+    local targetPos = (AimPrediction > 0)
+        and GetPredictedPosition(target, AimPart)
+        or part.Position
 
     if not targetPos then
         return
     end
 
-    local targetCFrame = CFrame.new(
-        Camera.CFrame.Position,
-        targetPos
-    )
+    local targetCFrame = CFrame.new(Camera.CFrame.Position, targetPos)
 
     if AimSmoothing > 0 then
-        Camera.CFrame = Camera.CFrame:Lerp(
-            targetCFrame,
-            math.clamp(AimSmoothing, 0, 1)
-        )
+        Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, math.clamp(AimSmoothing, 0, 1))
     else
         Camera.CFrame = targetCFrame
     end
