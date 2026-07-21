@@ -674,7 +674,7 @@ if not valid then
         TargetPlayer = nil
         local currentTime = os.clock()
         if currentTime - LastSearchTime > 0.5 then
-            TargetPlayer = FindMurderer()
+            TargetPlayer = Findtarget()
             LastSearchTime = currentTime
         end
     end
@@ -693,7 +693,7 @@ if not valid then
             -- Плавная наводка (Lerp)
             Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, Smoothness)
         end
-    end
+end
 end
 
 print("[MM2 Aim Lock] Loaded with Prediction + Smoothing + Team Check + Button Size + BURGER")
