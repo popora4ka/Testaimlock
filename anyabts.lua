@@ -395,61 +395,68 @@ my_section:AddKeybind("Toggle Key", "T", function()
     end
 end)
 
--- Toggle: Burger. (very OP)
--- Toggle: Burger. (very OP)
+-- Burger stuff
+local BurgerEnabled = false
+local BurgerSound = nil
+local ShakeConnection = nil
+local OriginalCameraCFrame = nil
+
+-- Функция тряски экрана
+local function ShakeCamera(intensity, duration)
+    local startTime = tick()
+    
+    ShakeConnection = RunService.RenderStepped:Connect(function()
+        local elapsed = tick() - startTime
+        if elapsed >= duration then
+            if ShakeConnection then
+                ShakeConnection:Disconnect()
+                ShakeConnection = nil
+            end
+            return
+        end
+        
+        local decay = 1 - (elapsed / duration)
+        local offset = Vector3.new(
+            math.random(-100, 100) * intensity * decay / 100,
+            math.random(-100, 100) * intensity * decay / 100,
+            0
+        )
+        
+        Camera.CFrame = Camera.CFrame * CFrame.new(offset)
+    end)
+end
+
+-- Тогл
 my_section:AddToggle("Burger. (very OP)", function(bool)
     BurgerEnabled = bool
     
     if bool then
-        -- Создаём/показываем бургер
+        -- Создаём и запускаем музыку
         local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-        if not playerGui then
-            shared.Notify("PlayerGui not found, retry!", 2)
-            return
-        end
-        
-        if not BurgerGui then
-            BurgerGui = Instance.new("ScreenGui")
-            BurgerGui.Name = "BurgerGui"
-            BurgerGui.ResetOnSpawn = false
-            BurgerGui.Parent = playerGui
+        if playerGui then
+            if BurgerSound then
+                pcall(function() BurgerSound:Destroy() end)
+            end
             
-            local burgerImage = Instance.new("ImageLabel")
-            burgerImage.Name = "Burger"
-            burgerImage.Size = UDim2.new(0, 300, 0, 300)
-            burgerImage.Position = UDim2.new(0.5, -150, 0.5, -150)
-            burgerImage.BackgroundTransparency = 1
-            burgerImage.Image = "rbxassetid://9557051090"
-            burgerImage.Parent = BurgerGui
-            
-            -- Второй бургер для ассортимента (раскомментируй если хочешь второй)
-            --[[
-            local burgerImage2 = Instance.new("ImageLabel")
-            burgerImage2.Name = "Burger2"
-            burgerImage2.Size = UDim2.new(0, 250, 0, 250)
-            burgerImage2.Position = UDim2.new(0.2, -125, 0.7, -125)
-            burgerImage2.BackgroundTransparency = 1
-            burgerImage2.Image = "rbxassetid://249137383"
-            burgerImage2.Parent = BurgerGui
-            --]]
-        else
-            BurgerGui.Enabled = true
-        end
-        
-        -- Создаём новый звук каждый раз при включении
-        CreateBurgerSound()
-        if BurgerSound then
+            BurgerSound = Instance.new("Sound")
+            BurgerSound.SoundId = "rbxassetid://138522344746615"
+            BurgerSound.Volume = 1
+            BurgerSound.Looped = true
+            BurgerSound.Parent = playerGui
             BurgerSound:Play()
         end
         
+        -- Запускаем бесконечную тряску
+        task.spawn(function()
+            while BurgerEnabled do
+                ShakeCamera(2, 0.3)
+                task.wait(0.1)
+            end
+        end)
+        
         shared.Notify("🍔 BURGER MODE ACTIVATED 🍔", 3)
     else
-        -- Прячем бургер
-        if BurgerGui then
-            BurgerGui.Enabled = false
-        end
-        
-        -- Убиваем звук полностью
+        -- Выключаем музыку
         if BurgerSound then
             pcall(function()
                 BurgerSound:Stop()
@@ -457,6 +464,8 @@ my_section:AddToggle("Burger. (very OP)", function(bool)
             end)
             BurgerSound = nil
         end
+        
+        -- Тряска сама остановится через проверку BurgerEnabled
         
         shared.Notify("Burger mode deactivated :(", 2)
     end
