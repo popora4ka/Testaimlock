@@ -1,10 +1,9 @@
--- MM2 Aim Lock for OverdriveH with BindableButtons + Mouse Move
+-- MM2 Aim Lock for OverdriveH with BindableButtons + Camera CFrame (AutoRotate fix)
 local shared = odh_shared_plugins
 local my_section = shared.AddSection("MM2 Aim Lock")
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
@@ -254,52 +253,6 @@ function BindableButtons.DeleteBButton(id)
     end
 end
 
--- ==================== MOUSE MOVE AIM ====================
-
-local MouseMoveAim = {}
-MouseMoveAim.__index = MouseMoveAim
-
-function MouseMoveAim.new(sensitivity, smoothing)
-    local self = setmetatable({}, MouseMoveAim)
-    self.Sensitivity = sensitivity or 1
-    self.Smoothing = smoothing or 0.5
-    self.CurrentDeltaX = 0
-    self.CurrentDeltaY = 0
-    return self
-end
-
-function MouseMoveAim:MoveToPosition(targetPos, cameraPos, cameraCFrame)
-    local direction = (targetPos - cameraPos).Unit
-    local lookVector = cameraCFrame.LookVector
-    
-    local dotProduct = lookVector:Dot(direction)
-    if dotProduct > 0.9999 then
-        self.CurrentDeltaX = 0
-        self.CurrentDeltaY = 0
-        return
-    end
-    
-    local rightVector = cameraCFrame.RightVector
-    local upVector = cameraCFrame.UpVector
-    
-    local deltaX = direction:Dot(rightVector)
-    local deltaY = direction:Dot(upVector)
-    
-    deltaX = math.clamp(deltaX, -1, 1)
-    deltaY = math.clamp(deltaY, -1, 1)
-    
-    local angleX = math.asin(deltaX)
-    local angleY = math.asin(deltaY)
-    
-    local pixelX = (angleX / math.pi) * 180 * 6 * self.Sensitivity
-    local pixelY = (angleY / math.pi) * 180 * 4 * self.Sensitivity
-    
-    self.CurrentDeltaX = self.CurrentDeltaX + (pixelX - self.CurrentDeltaX) * self.Smoothing
-    self.CurrentDeltaY = self.CurrentDeltaY + (pixelY - self.CurrentDeltaY) * self.Smoothing
-    
-    mousemoverel(self.CurrentDeltaX, self.CurrentDeltaY)
-end
-
 -- ==================== AIM LOCK LOGIC ====================
 
 -- Settings
@@ -311,16 +264,13 @@ local BindButtonEnabled = false
 local AimLockBind = nil
 local TargetPlayerName = nil
 local playerListDropdown = nil
-local Smoothing = 0.4
-local Sensitivity = 1.5
-
-local AimMover = MouseMoveAim.new(Sensitivity, Smoothing)
+local Smoothing = 0.3  -- Camera smoothing (0 = instant, 1 = max smooth)
 
 -- Credits
 my_section:AddLabel("Credits: @anya_bts")
 
 -- Description
-my_section:AddParagraph("MM2 Aim Lock", "Auto-aim for Innocent role. Uses mouse movement (works without Shift Lock).")
+my_section:AddParagraph("MM2 Aim Lock", "Camera CFrame aim lock. AutoRotate disabled while active to prevent de-focus.")
 
 -- Toggle: Enable Aim Lock
 my_section:AddToggle("Enable Aim Lock", function(bool)
@@ -426,15 +376,8 @@ my_section:AddDropdown("Target Part", {"Head", "Body"}, function(selected)
 end)
 
 -- Slider: Smoothing
-my_section:AddSlider("Smoothing", 0, 100, 40, function(value)
+my_section:AddSlider("Smoothing", 0, 100, 30, function(value)
     Smoothing = value / 100
-    AimMover.Smoothing = Smoothing
-end)
-
--- Slider: Sensitivity
-my_section:AddSlider("Sensitivity", 0, 500, 150, function(value)
-    Sensitivity = value / 100
-    AimMover.Sensitivity = Sensitivity
 end)
 
 -- Toggle: Wall Check
@@ -555,11 +498,41 @@ local function FindTarget()
     return bestTarget
 end
 
+-- Manage AutoRotate
+local lastAutoRotate = true
+local function SetAutoRotate(state)
+    local char = LocalPlayer.Character
+    if char then
+        local hum = char:FindFirstChild("Humanoid")
+        if hum then
+            hum.AutoRotate = state
+        end
+    end
+end
+
 -- ==================== MAIN LOOP ====================
 
 RunService.RenderStepped:Connect(function(deltaTime)
-    if not AimLockEnabled then return end
-    if not IsInRound() then return end
+    if not AimLockEnabled then
+        -- Restore AutoRotate if was disabled
+        if not lastAutoRotate then
+            SetAutoRotate(true)
+            lastAutoRotate = true
+        end
+        return
+    end
+    
+    if not IsInRound() then
+        SetAutoRotate(true)
+        lastAutoRotate = true
+        return
+    end
+    
+    -- Disable AutoRotate while aiming
+    if lastAutoRotate then
+        SetAutoRotate(false)
+        lastAutoRotate = false
+    end
     
     local target = FindTarget()
     
@@ -568,11 +541,20 @@ RunService.RenderStepped:Connect(function(deltaTime)
         if part then
             local cameraPos = Camera.CFrame.Position
             local targetPos = part.Position
-            local cameraCFrame = Camera.CFrame
+            local desiredCFrame = CFrame.new(cameraPos, targetPos)
             
-            AimMover:MoveToPosition(targetPos, cameraPos, cameraCFrame)
+            if Smoothing > 0 then
+                Camera.CFrame = Camera.CFrame:Lerp(desiredCFrame, 1 - Smoothing)
+            else
+                Camera.CFrame = desiredCFrame
+            end
         end
     end
 end)
 
-print("[MM2 Aim Lock] Loaded successfully with Mouse Move Aim + BindableButtons")
+-- Ensure AutoRotate is restored when character respawns or dies
+LocalPlayer.CharacterAdded:Connect(function(char)
+    lastAutoRotate = true -- Reset on new character
+end)
+
+print("[MM2 Aim Lock] Loaded with Camera CFrame + AutoRotate fix")
