@@ -636,60 +636,66 @@ local function FindTarget()
     return bestTarget
 end
 
--- ==================== MAIN LOOP (с оптимизацией) ====================
+-- ==================== MAIN LOOP (исправленный) ====================
 
 RunService.RenderStepped:Connect(function()
     if not AimLockEnabled then return end
     if not IsInRound() then return end
     
-    -- Проверка валидности текущей цели
-    local valid = TargetPlayer and TargetPlayer.Character and TargetPlayer.Character:FindFirstChild("Humanoid") and TargetPlayer.Character.Humanoid.Health > 0
-    
-    if WallCheck and valid and not IsVisible(TargetPlayer) then
-        valid = false
+    -- Поиск цели раз в 0.5 секунд или если цели нет
+    local currentTime = tick()
+    if not TargetPlayer or currentTime - LastSearchTime > 0.5 then
+        local newTarget = FindTarget()
+        if newTarget then
+            TargetPlayer = newTarget
+        end
+        LastSearchTime = currentTime
     end
     
-    -- Если цель невалидна — ищем новую, но не чаще раза в 0.5 секунд
-    if not valid then
-        TargetPlayer = nil
-        local currentTime = os.clock()
-        if currentTime - LastSearchTime > 0.5 then
-            TargetPlayer = FindTarget()
-            LastSearchTime = currentTime
+    -- Проверка валидности текущей цели
+    if TargetPlayer then
+        local valid = false
+        if TargetPlayer.Character then
+            local hum = TargetPlayer.Character:FindFirstChild("Humanoid")
+            if hum and hum.Health > 0 then
+                if WallCheck then
+                    valid = IsVisible(TargetPlayer)
+                else
+                    valid = true
+                end
+            end
+        end
+        
+        if not valid then
+            TargetPlayer = nil
         end
     end
     
+    -- Наведение на цель
     if TargetPlayer and TargetPlayer.Character then
         local targetPart = TargetPlayer.Character:FindFirstChild(AimPart)
         
         if targetPart then
-            local currentTime = os.clock()
             local currentPos = targetPart.Position
-            local velocity = Vector3.zero
+            local predictedPos = currentPos
             
-            if LastTargetPosition and LastUpdateTime > 0 then
-                local timeDelta = currentTime - LastUpdateTime
-                if timeDelta > 0 then
-                    velocity = (currentPos - LastTargetPosition) / timeDelta
-                end
+            -- Расчёт скорости для упреждения
+            if AimPrediction > 0 and LastTargetPosition then
+                local velocity = (currentPos - LastTargetPosition) / 0.015 -- примерно 1 кадр
+                predictedPos = currentPos + Vector3.new(velocity.X, velocity.Y * 0.5, velocity.Z) * AimPrediction
             end
             
             LastTargetPosition = currentPos
-            LastUpdateTime = currentTime
-            
-            local predictedPos = currentPos + Vector3.new(velocity.X, velocity.Y * 0.5, velocity.Z) * AimPrediction
             
             local targetCFrame = CFrame.new(Camera.CFrame.Position, predictedPos)
             
-            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, AimSmoothing)
+            if AimSmoothing > 0 then
+                Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, AimSmoothing)
+            else
+                Camera.CFrame = targetCFrame
+            end
         end
     end
-end)
-
-LocalPlayer.CharacterAdded:Connect(function()
-    TargetPlayer = nil
-    LastTargetPosition = nil
-    LastUpdateTime = 0
 end)
 
 print("[MM2 Aim Lock] Loaded with ALL features: Prediction + Smoothing + Team Check + Button Size + Camera Optimization + BURGER")
