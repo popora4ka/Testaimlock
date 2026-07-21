@@ -3,7 +3,7 @@ local shared = odh_shared_plugins
 local my_section = shared.AddSection("MM2 Aim Lock")
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
+local RunService = game:FindService("RunService") or game:GetService("RunService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
