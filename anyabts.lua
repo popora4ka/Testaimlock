@@ -1,4 +1,4 @@
--- MM2 Aim Lock for OverdriveH with BindableButtons + Camera CFrame (AutoRotate fix)
+-- MM2 Aim Lock for OverdriveH with BindableButtons
 local shared = odh_shared_plugins
 local my_section = shared.AddSection("MM2 Aim Lock")
 
@@ -257,20 +257,24 @@ end
 
 -- Settings
 local AimLockEnabled = false
-local AimTarget = "Murderer"
+local AimTarget = "Murderer" -- "Murderer", "Sheriff", or player name
 local AimPart = "Head"
 local WallCheck = false
 local BindButtonEnabled = false
 local AimLockBind = nil
-local TargetPlayerName = nil
+local TargetPlayerName = nil -- nil means use role-based targeting
 local playerListDropdown = nil
-local Smoothing = 0.3  -- Camera smoothing (0 = instant, 1 = max smooth)
+
+-- Burger stuff
+local BurgerEnabled = false
+local BurgerGui = nil
+local BurgerSound = nil
 
 -- Credits
 my_section:AddLabel("Credits: @anya_bts")
 
 -- Description
-my_section:AddParagraph("MM2 Aim Lock", "Camera CFrame aim lock. AutoRotate disabled while active to prevent de-focus.")
+my_section:AddParagraph("MM2 Aim Lock", "Auto-aim for Innocent role. Locks camera onto selected target.")
 
 -- Toggle: Enable Aim Lock
 my_section:AddToggle("Enable Aim Lock", function(bool)
@@ -342,8 +346,10 @@ playerListDropdown = my_section:AddDropdown("Target Player", {"None (Use Role)"}
     end
 end)
 
+-- Initial population
 UpdatePlayerList()
 
+-- Update player list every 30 seconds
 task.spawn(function()
     while true do
         task.wait(30)
@@ -351,6 +357,7 @@ task.spawn(function()
     end
 end)
 
+-- Listen for players joining/leaving to update list
 Players.PlayerAdded:Connect(function()
     task.wait(1)
     UpdatePlayerList()
@@ -375,11 +382,6 @@ my_section:AddDropdown("Target Part", {"Head", "Body"}, function(selected)
     end
 end)
 
--- Slider: Smoothing
-my_section:AddSlider("Smoothing", 0, 100, 30, function(value)
-    Smoothing = value / 100
-end)
-
 -- Toggle: Wall Check
 my_section:AddToggle("Wall Check", function(bool)
     WallCheck = bool
@@ -390,6 +392,57 @@ my_section:AddKeybind("Toggle Key", "T", function()
     AimLockEnabled = not AimLockEnabled
     if AimLockBind then
         AimLockBind.Value = AimLockEnabled
+    end
+end)
+
+-- Toggle: Burger. (very OP)
+my_section:AddToggle("Burger. (very OP)", function(bool)
+    BurgerEnabled = bool
+    
+    if bool then
+        -- Create burger image
+        if not BurgerGui then
+            local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+            
+            BurgerGui = Instance.new("ScreenGui")
+            BurgerGui.Name = "BurgerGui"
+            BurgerGui.ResetOnSpawn = false
+            BurgerGui.Parent = playerGui
+            
+            local burgerImage = Instance.new("ImageLabel")
+            burgerImage.Name = "Burger"
+            burgerImage.Size = UDim2.new(0, 256, 0, 256)
+            burgerImage.Position = UDim2.new(0.5, -128, 0.5, -128)
+            burgerImage.BackgroundTransparency = 1
+            burgerImage.Image = "rbxassetid://9557051090"
+            burgerImage.Parent = BurgerGui
+        else
+            BurgerGui.Enabled = true
+        end
+        
+        -- Create and play sound
+        if not BurgerSound then
+            BurgerSound = Instance.new("Sound")
+            BurgerSound.SoundId = "rbxassetid://138522344746615"
+            BurgerSound.Volume = 1
+            BurgerSound.Looped = true
+            BurgerSound.Parent = LocalPlayer:WaitForChild("PlayerGui")
+        end
+        BurgerSound:Play()
+        
+        shared.Notify("🍔 BURGER MODE ACTIVATED 🍔", 3)
+    else
+        -- Hide burger
+        if BurgerGui then
+            BurgerGui.Enabled = false
+        end
+        
+        -- Stop sound
+        if BurgerSound then
+            BurgerSound:Stop()
+        end
+        
+        shared.Notify("Burger mode deactivated :(", 2)
     end
 end)
 
@@ -445,6 +498,7 @@ local function GetTool(player, keywords)
 end
 
 local function FindTarget()
+    -- If a specific player is selected, target them
     if TargetPlayerName then
         local targetPlayer = Players:FindFirstChild(TargetPlayerName)
         if targetPlayer and targetPlayer.Character then
@@ -459,6 +513,7 @@ local function FindTarget()
         return nil
     end
     
+    -- Otherwise use role-based targeting
     local knifeKeywords = {"knife", "нож"}
     local gunKeywords = {"gun", "пистолет", "револьвер", "revolver", "sheriff", "шериф"}
     
@@ -498,63 +553,21 @@ local function FindTarget()
     return bestTarget
 end
 
--- Manage AutoRotate
-local lastAutoRotate = true
-local function SetAutoRotate(state)
-    local char = LocalPlayer.Character
-    if char then
-        local hum = char:FindFirstChild("Humanoid")
-        if hum then
-            hum.AutoRotate = state
-        end
-    end
-end
-
 -- ==================== MAIN LOOP ====================
 
-RunService.RenderStepped:Connect(function(deltaTime)
-    if not AimLockEnabled then
-        -- Restore AutoRotate if was disabled
-        if not lastAutoRotate then
-            SetAutoRotate(true)
-            lastAutoRotate = true
-        end
-        return
-    end
-    
-    if not IsInRound() then
-        SetAutoRotate(true)
-        lastAutoRotate = true
-        return
-    end
-    
-    -- Disable AutoRotate while aiming
-    if lastAutoRotate then
-        SetAutoRotate(false)
-        lastAutoRotate = false
-    end
+RunService.RenderStepped:Connect(function()
+    if not AimLockEnabled then return end
+    if not IsInRound() then return end
     
     local target = FindTarget()
     
     if target and target.Character then
         local part = target.Character:FindFirstChild(AimPart)
         if part then
-            local cameraPos = Camera.CFrame.Position
-            local targetPos = part.Position
-            local desiredCFrame = CFrame.new(cameraPos, targetPos)
-            
-            if Smoothing > 0 then
-                Camera.CFrame = Camera.CFrame:Lerp(desiredCFrame, 1 - Smoothing)
-            else
-                Camera.CFrame = desiredCFrame
-            end
+            local lookAt = CFrame.new(Camera.CFrame.Position, part.Position)
+            Camera.CFrame = lookAt
         end
     end
 end)
 
--- Ensure AutoRotate is restored when character respawns or dies
-LocalPlayer.CharacterAdded:Connect(function(char)
-    lastAutoRotate = true -- Reset on new character
-end)
-
-print("[MM2 Aim Lock] Loaded with Camera CFrame + AutoRotate fix")
+print("[MM2 Aim Lock] Loaded successfully with BindableButtons + Player Targeting + BURGER")
