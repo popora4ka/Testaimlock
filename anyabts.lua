@@ -257,11 +257,13 @@ end
 
 -- Settings
 local AimLockEnabled = false
-local AimTarget = "Murderer"
+local AimTarget = "Murderer" -- "Murderer", "Sheriff", or player name
 local AimPart = "Head"
 local WallCheck = false
 local BindButtonEnabled = false
 local AimLockBind = nil
+local TargetPlayerName = nil -- nil means use role-based targeting
+local playerListDropdown = nil
 
 -- Credits
 my_section:AddLabel("Credits: @anya_bts")
@@ -313,6 +315,52 @@ my_section:AddToggle("Show Bind Button", function(bool)
             end
         end
     end
+end)
+
+-- Function to update player list
+local function UpdatePlayerList()
+    local playerNames = {"None (Use Role)"}
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            table.insert(playerNames, player.Name)
+        end
+    end
+    
+    if playerListDropdown then
+        playerListDropdown.Change(playerNames)
+    end
+end
+
+-- Dropdown: Target Player
+playerListDropdown = my_section:AddDropdown("Target Player", {"None (Use Role)"}, function(selected)
+    if selected == "None (Use Role)" then
+        TargetPlayerName = nil
+    else
+        TargetPlayerName = selected
+    end
+end)
+
+-- Initial population
+UpdatePlayerList()
+
+-- Update player list every 30 seconds
+task.spawn(function()
+    while true do
+        task.wait(30)
+        UpdatePlayerList()
+    end
+end)
+
+-- Listen for players joining/leaving to update list
+Players.PlayerAdded:Connect(function()
+    task.wait(1)
+    UpdatePlayerList()
+end)
+
+Players.PlayerRemoving:Connect(function()
+    task.wait(1)
+    UpdatePlayerList()
 end)
 
 -- Dropdown: Target Role
@@ -394,6 +442,22 @@ local function GetTool(player, keywords)
 end
 
 local function FindTarget()
+    -- If a specific player is selected, target them
+    if TargetPlayerName then
+        local targetPlayer = Players:FindFirstChild(TargetPlayerName)
+        if targetPlayer and targetPlayer.Character then
+            local hum = targetPlayer.Character:FindFirstChild("Humanoid")
+            if hum and hum.Health > 0 then
+                if WallCheck and not IsVisible(targetPlayer.Character) then
+                    return nil
+                end
+                return targetPlayer
+            end
+        end
+        return nil
+    end
+    
+    -- Otherwise use role-based targeting
     local knifeKeywords = {"knife", "нож"}
     local gunKeywords = {"gun", "пистолет", "револьвер", "revolver", "sheriff", "шериф"}
     
@@ -450,4 +514,4 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
-print("[MM2 Aim Lock] Loaded successfully with BindableButtons")
+print("[MM2 Aim Lock] Loaded successfully with BindableButtons + Player Targeting")
