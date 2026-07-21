@@ -671,41 +671,36 @@ end
 
 -- ==================== MAIN LOOP ====================
 
-RunService.RenderStepped:Connect(function()
-    if
-    if not AimLockEnabled or not IsInRound() then return end
-    
-    local valid = TargetPlayer and TargetPlayer.Character and TargetPlayer.Character:FindFirstChild("Humanoid") and TargetPlayer.Character.Humanoid.Health > 0
-    
-    if WallCheck and valid and not IsVisible(TargetPlayer) then
-        valid = false
-    end
-    
-    if not valid then
-        TargetPlayer = nil
-        local currentTime = tick()
-        if currentTime - LastSearchTime > 0.5 then
-            TargetPlayer = FindTarget()
-            LastSearchTime = currentTime
-        end
-    end
-    
-    if TargetPlayer and TargetPlayer.Character then
-        local targetNode = TargetPlayer.Character:FindFirstChild(AimPart)
-        
-        if targetNode then
-            local targetVelocity = targetNode.AssemblyLinearVelocity
-            local predictedPos = targetNode.Position + Vector3.new(targetVelocity.X, targetVelocity.Y * 0.5, targetVelocity.Z) * PredictionLevel
-            
-            local targetCFrame = CFrame.new(Camera.CFrame.Position, predictedPos)
-            
-            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, Smoothness)
-        end
-    end
-end)
+RunService.RenderStepped:Connect(function(deltaTime)
+    if not AimLockEnabled then return end
+    if not IsInRound() then return end
 
-LocalPlayer.CharacterAdded:Connect(function()
-    TargetPlayer = nil
-end)
+    local target = FindTarget()
+    if not target or not target.Character then return end
 
-print("[MM2 Aim Lock] Delta-ready. Loaded successfully.")
+    local part = target.Character:FindFirstChild(AimPart)
+    if not part then return end
+
+    local targetPos = AimPrediction > 0
+        and GetPredictedPosition(target, AimPart)
+        or part.Position
+
+    if not targetPos then return end
+
+    local cameraPos = Camera.CFrame.Position
+
+    -- Сохраняем текущее расстояние камеры
+    local distance = (cameraPos - workspace.CurrentCamera.Focus.Position).Magnitude
+
+    -- Поворачиваем только взгляд
+    local lookCF = CFrame.lookAt(cameraPos, targetPos)
+
+    if AimSmoothing > 0 then
+        Camera.CFrame = Camera.CFrame:Lerp(lookCF, math.clamp(AimSmoothing * deltaTime * 60, 0, 1))
+    else
+        Camera.CFrame = lookCF
+    end
+
+    -- Возвращаем прежнее расстояние камеры
+    Camera.Focus = CFrame.new(targetPos)
+end)
