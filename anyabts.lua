@@ -671,38 +671,37 @@ end
 
 -- ==================== MAIN LOOP ====================
 
-RunService.RenderStepped:Connect(function(deltaTime)
-    if not AimLockEnabled then return end
-    if not IsInRound() then return end
+RunService.RenderStepped:Connect(function()
+    if not AimLockEnabled or not IsInRound() then
+        return
+    end
 
     local target = FindTarget()
-    if not target or not target.Character then return end
+    if not target or not target.Character then
+        return
+    end
 
     local part = target.Character:FindFirstChild(AimPart)
-    if not part then return end
+    if not part then
+        return
+    end
 
-    local targetPos = AimPrediction > 0
+    local targetPos = (AimPrediction > 0)
         and GetPredictedPosition(target, AimPart)
         or part.Position
 
-    if not targetPos then return end
-
-    local cameraPos = Camera.CFrame.Position
-
-    -- Сохраняем текущее расстояние камеры
-    local distance = (cameraPos - workspace.CurrentCamera.Focus.Position).Magnitude
-
-    -- Поворачиваем только взгляд
-    local lookCF = CFrame.lookAt(cameraPos, targetPos)
-
-    if AimSmoothing > 0 then
-        Camera.CFrame = Camera.CFrame:Lerp(lookCF, math.clamp(AimSmoothing * deltaTime * 60, 0, 1))
-    else
-        Camera.CFrame = lookCF
+    if not targetPos then
+        return
     end
 
-    -- Возвращаем прежнее расстояние камеры
-    Camera.Focus = CFrame.new(targetPos)
+    local camPos = Camera.CFrame.Position
+    local newCF = CFrame.lookAt(camPos, targetPos)
+
+    if AimSmoothing > 0 then
+        Camera.CFrame = Camera.CFrame:Lerp(newCF, AimSmoothing)
+    else
+        Camera.CFrame = newCF
+    end
 end)
 
 print("[MM2 Aim Lock] Loaded with Prediction + Smoothing + Team Check + Button Size + BURGER")
