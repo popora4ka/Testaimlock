@@ -704,3 +704,5 @@ RunService.RenderStepped:Connect(function(deltaTime)
     -- Возвращаем прежнее расстояние камеры
     Camera.Focus = CFrame.new(targetPos)
 end)
+
+print("[MM2 Aim Lock] Loaded with Prediction + Smoothing + Team Check + Button Size + BURGER")
