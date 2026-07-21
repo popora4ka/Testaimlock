@@ -672,7 +672,7 @@ end
 -- ==================== MAIN LOOP ====================
 
 RunService.RenderStepped:Connect(function()
-    end
+    if
     if not AimLockEnabled or not IsInRound() then return end
     
     local valid = TargetPlayer and TargetPlayer.Character and TargetPlayer.Character:FindFirstChild("Humanoid") and TargetPlayer.Character.Humanoid.Health > 0
