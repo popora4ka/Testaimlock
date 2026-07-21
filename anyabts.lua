@@ -150,7 +150,7 @@ function BindableButtons.AddBButton(id, text, onFunc, offFunc)
     local camera = workspace.CurrentCamera
     local screen = camera.ViewportSize
     
-    local buttonSizeY = 0.11
+    local buttonSizeY = 0.10
     local widthScale = buttonSizeY * (screen.Y / screen.X)
     
     local xPos = 0.1 + ((BindableButtons.Count % 8) * (widthScale + 0.005))
