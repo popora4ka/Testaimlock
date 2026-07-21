@@ -396,14 +396,19 @@ my_section:AddKeybind("Toggle Key", "T", function()
 end)
 
 -- Toggle: Burger. (very OP)
+-- Toggle: Burger. (very OP)
 my_section:AddToggle("Burger. (very OP)", function(bool)
     BurgerEnabled = bool
     
     if bool then
-        -- Create burger image
+        -- Создаём/показываем бургер
+        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+        if not playerGui then
+            shared.Notify("PlayerGui not found, retry!", 2)
+            return
+        end
+        
         if not BurgerGui then
-            local playerGui = LocalPlayer:WaitForChild("PlayerGui")
-            
             BurgerGui = Instance.new("ScreenGui")
             BurgerGui.Name = "BurgerGui"
             BurgerGui.ResetOnSpawn = false
@@ -411,35 +416,46 @@ my_section:AddToggle("Burger. (very OP)", function(bool)
             
             local burgerImage = Instance.new("ImageLabel")
             burgerImage.Name = "Burger"
-            burgerImage.Size = UDim2.new(0, 256, 0, 256)
-            burgerImage.Position = UDim2.new(0.5, -128, 0.5, -128)
+            burgerImage.Size = UDim2.new(0, 300, 0, 300)
+            burgerImage.Position = UDim2.new(0.5, -150, 0.5, -150)
             burgerImage.BackgroundTransparency = 1
             burgerImage.Image = "rbxassetid://9557051090"
             burgerImage.Parent = BurgerGui
+            
+            -- Второй бургер для ассортимента (раскомментируй если хочешь второй)
+            --[[
+            local burgerImage2 = Instance.new("ImageLabel")
+            burgerImage2.Name = "Burger2"
+            burgerImage2.Size = UDim2.new(0, 250, 0, 250)
+            burgerImage2.Position = UDim2.new(0.2, -125, 0.7, -125)
+            burgerImage2.BackgroundTransparency = 1
+            burgerImage2.Image = "rbxassetid://249137383"
+            burgerImage2.Parent = BurgerGui
+            --]]
         else
             BurgerGui.Enabled = true
         end
         
-        -- Create and play sound
-        if not BurgerSound then
-            BurgerSound = Instance.new("Sound")
-            BurgerSound.SoundId = "rbxassetid://138522344746615"
-            BurgerSound.Volume = 1
-            BurgerSound.Looped = true
-            BurgerSound.Parent = LocalPlayer:WaitForChild("PlayerGui")
+        -- Создаём новый звук каждый раз при включении
+        CreateBurgerSound()
+        if BurgerSound then
+            BurgerSound:Play()
         end
-        BurgerSound:Play()
         
         shared.Notify("🍔 BURGER MODE ACTIVATED 🍔", 3)
     else
-        -- Hide burger
+        -- Прячем бургер
         if BurgerGui then
             BurgerGui.Enabled = false
         end
         
-        -- Stop sound
+        -- Убиваем звук полностью
         if BurgerSound then
-            BurgerSound:Stop()
+            pcall(function()
+                BurgerSound:Stop()
+                BurgerSound:Destroy()
+            end)
+            BurgerSound = nil
         end
         
         shared.Notify("Burger mode deactivated :(", 2)
