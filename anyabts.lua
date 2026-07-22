@@ -103,6 +103,24 @@ local function MakeDraggable(gui, maid, ripple, sound, clickFunc)
     
     maid:GiveTask(gui.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            if ButtonLocked and gui.Name == "MM2_AimLock" then
+                -- Только клик, без драга
+                sound:Play()
+                local absPos = gui.AbsolutePosition
+                ripple.Position = __UD2(0, input.Position.X - absPos.X, 0, input.Position.Y - absPos.Y)
+                ripple.Size = __UD2(0, 0, 0, 0)
+                ripple.BackgroundTransparency = 0.5
+                ripple.Visible = true
+                
+                __TS:Create(ripple, TweenInfo.new(0.4, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+                    Size = __UD2(0, 45, 0, 45),
+                    BackgroundTransparency = 1
+                }):Play()
+
+                clickFunc()
+                return
+            end
+            
             dragging, dragStart, startPos = true, input.Position, gui.Position
             hasMoved = false
             
@@ -130,6 +148,26 @@ local function MakeDraggable(gui, maid, ripple, sound, clickFunc)
             end)
         end
     end))
+    
+    maid:GiveTask(gui.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+    end))
+    
+    maid:GiveTask(__UIS.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            if delta.Magnitude > 7 then hasMoved = true end
+            local screen = gui.Parent.AbsoluteSize
+            gui.Position = __UD2(startPos.X.Scale + (delta.X / screen.X), 0, startPos.Y.Scale + (delta.Y / screen.Y), 0)
+        end
+    end))
+    
+    maid:GiveTask(gui:GetPropertyChangedSignal("Position"):Connect(function()
+        if ButtonLocked and gui.Name == "MM2_AimLock" and SavedButtonPosition then
+            gui.Position = SavedButtonPosition
+        end
+    end))
+end
     
     maid:GiveTask(gui.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
