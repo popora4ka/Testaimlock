@@ -2,6 +2,8 @@
 local shared = odh_shared_plugins
 local my_section = shared.AddSection("MM2 Aim Lock")
 
+local CurrentTarget = nil
+local LastSearch = 0
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Camera = workspace.CurrentCamera
@@ -671,35 +673,62 @@ end
 
 -- ==================== MAIN LOOP ====================
 
-RunService.RenderStepped:Connect(function(deltaTime)
-    if not AimLockEnabled then return end
-    if not IsInRound() then return end
-    
-    local target = FindTarget()
-    
-    if target and target.Character then
-        local targetPos = nil
-        
-        if AimPrediction > 0 then
-            targetPos = GetPredictedPosition(target, AimPart)
-        else
-            local part = target.Character:FindFirstChild(AimPart)
-            if part then
-                targetPos = part.Position
-            end
-        end
-        
-        if targetPos then
-            local cameraPos = Camera.CFrame.Position
-            local desiredCFrame = CFrame.new(cameraPos, targetPos)
-            
-            if AimSmoothing > 0 then
-                Camera.CFrame = Camera.CFrame:Lerp(desiredCFrame, AimSmoothing)
-            else
-                Camera.CFrame = desiredCFrame
-            end
-        end
+RunService.RenderStepped:Connect(function()
+
+    if not AimLockEnabled or not IsInRound() then
+        CurrentTarget = nil
+        return
     end
+
+    local now = os.clock()
+
+    if now - LastSearch > 0.3 then
+        CurrentTarget = FindTarget()
+        LastSearch = now
+    end
+
+    if not CurrentTarget
+        or not CurrentTarget.Character
+        or not CurrentTarget.Character:FindFirstChild(AimPart)
+    then
+        CurrentTarget = FindTarget()
+    end
+
+    if not CurrentTarget then
+        return
+    end
+
+    local part = CurrentTarget.Character:FindFirstChild(AimPart)
+    if not part then
+        return
+    end
+
+    local targetPos
+
+    if AimPrediction > 0 then
+        targetPos = GetPredictedPosition(CurrentTarget, AimPart)
+    else
+        targetPos = part.Position
+    end
+
+    if not targetPos then
+        return
+    end
+
+    local targetCFrame = CFrame.new(
+        Camera.CFrame.Position,
+        targetPos
+    )
+
+    if AimSmoothing > 0 then
+        Camera.CFrame = Camera.CFrame:Lerp(
+            targetCFrame,
+            math.clamp(AimSmoothing, 0, 1)
+        )
+    else
+        Camera.CFrame = targetCFrame
+    end
+
 end)
 
 print("[MM2 Aim Lock] Loaded")
