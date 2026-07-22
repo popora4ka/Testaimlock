@@ -374,7 +374,26 @@ my_section:AddSlider("Button Size", 5, 30, 11, function(value)
         BindableButtons.SetSize("MM2_AimLock", ButtonSize)
     end
 end)
+-- Toggle: Lock Button Position
+local ButtonLocked = false
+local SavedButtonPosition = nil
 
+my_section:AddToggle("Lock Button Position", function(bool)
+    ButtonLocked = bool
+    if bool then
+        if AimLockButton then
+            SavedButtonPosition = AimLockButton.Position
+            AimLockButton.Draggable = false
+            shared.Notify("Button position locked", 2)
+        end
+    else
+        if AimLockButton then
+            AimLockButton.Draggable = true
+            SavedButtonPosition = nil
+            shared.Notify("Button position unlocked", 2)
+        end
+    end
+end)
 -- Function to update player list
 local function UpdatePlayerList()
     local playerNames = {"None (Use Role)"}
