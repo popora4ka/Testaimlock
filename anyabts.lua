@@ -103,24 +103,6 @@ local function MakeDraggable(gui, maid, ripple, sound, clickFunc)
     
     maid:GiveTask(gui.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            if ButtonLocked and gui.Name == "MM2_AimLock" then
-                -- Только клик, без драга
-                sound:Play()
-                local absPos = gui.AbsolutePosition
-                ripple.Position = __UD2(0, input.Position.X - absPos.X, 0, input.Position.Y - absPos.Y)
-                ripple.Size = __UD2(0, 0, 0, 0)
-                ripple.BackgroundTransparency = 0.5
-                ripple.Visible = true
-                
-                __TS:Create(ripple, TweenInfo.new(0.4, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-                    Size = __UD2(0, 45, 0, 45),
-                    BackgroundTransparency = 1
-                }):Play()
-
-                clickFunc()
-                return
-            end
-            
             dragging, dragStart, startPos = true, input.Position, gui.Position
             hasMoved = false
             
@@ -148,26 +130,6 @@ local function MakeDraggable(gui, maid, ripple, sound, clickFunc)
             end)
         end
     end))
-    
-    maid:GiveTask(gui.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
-    end))
-    
-    maid:GiveTask(__UIS.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            local delta = input.Position - dragStart
-            if delta.Magnitude > 7 then hasMoved = true end
-            local screen = gui.Parent.AbsoluteSize
-            gui.Position = __UD2(startPos.X.Scale + (delta.X / screen.X), 0, startPos.Y.Scale + (delta.Y / screen.Y), 0)
-        end
-    end))
-    
-    maid:GiveTask(gui:GetPropertyChangedSignal("Position"):Connect(function()
-        if ButtonLocked and gui.Name == "MM2_AimLock" and SavedButtonPosition then
-            gui.Position = SavedButtonPosition
-        end
-    end))
-end
     
     maid:GiveTask(gui.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
@@ -412,22 +374,7 @@ my_section:AddSlider("Button Size", 5, 30, 11, function(value)
         BindableButtons.SetSize("MM2_AimLock", ButtonSize)
     end
 end)
--- Toggle: Lock Button Position
-local ButtonLocked = false
-local SavedButtonPosition = nil
 
-my_section:AddToggle("Lock Button Position", function(bool)
-    ButtonLocked = bool
-    if bool then
-        if AimLockButton then
-            SavedButtonPosition = AimLockButton.Position
-            shared.Notify("Button position locked", 2)
-        end
-    else
-        SavedButtonPosition = nil
-        shared.Notify("Button position unlocked", 2)
-    end
-end)
 -- Function to update player list
 local function UpdatePlayerList()
     local playerNames = {"None (Use Role)"}
@@ -655,6 +602,31 @@ local function FindTarget()
     local knifeKeywords = {"knife", "нож"}
     local gunKeywords = {"gun", "пистолет", "револьвер", "revolver", "sheriff", "шериф"}
     
+    local bestTarget = nil
+    local bestDistance = math.huge
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local hum = player.Character:FindFirstChild("Humanoid")
+            if hum and hum.Health > 0 then
+                
+                -- Team check
+                if TeamCheckEnabled and IsSameTeam(LocalPlayer, targetPlayer) then
+                    return nil
+                end
+                
+                if WallCheck and not IsVisible(targetPlayer.Character) then
+                    return nil
+                end
+                return targetPlayer
+            end
+        end
+        return nil
+    end
+    
+    local knifeKeywords = {"knife", "нож"}
+    local gunKeywords = {"gun", "пистолет", "револьвер", "revolver", "sheriff", "шериф"}
+
     local bestTarget = nil
     local bestDistance = math.huge
     
