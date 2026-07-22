@@ -623,4 +623,83 @@ local function FindTarget()
                 if valid then
                     if WallCheck and not IsVisible(player.Character) then
                         -- skip
+        else
+                        local root = player.Character:FindFirstChild("HumanoidRootPart")
+                        if root then
+                            local dist = (Camera.CFrame.Position - root.Position).Magnitude
+                            if dist < bestDistance then
+                                bestDistance = dist
+                                bestTarget = player
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    return bestTarget
+end
+
+local function GetPredictedPosition(target, part)
+    if not target or not target.Character then return nil end
+    
+    local targetPart = target.Character:FindFirstChild(part)
+    if not targetPart then return nil end
+    
+    local currentPos = targetPart.Position
+    
+    -- Calculate velocity
+    local currentTime = tick()
+    local velocity = Vector3.zero
+    
+    if LastTargetPosition and LastUpdateTime > 0 then
+        local timeDelta = currentTime - LastUpdateTime
+        if timeDelta > 0 then
+            velocity = (currentPos - LastTargetPosition) / timeDelta
+        end
+    end
+    
+    LastTargetPosition = currentPos
+    LastUpdateTime = currentTime
+    
+    -- Apply prediction
+    local predictedPos = currentPos + (velocity * AimPrediction)
+    
+    return predictedPos
+end
+
+-- ==================== MAIN LOOP ====================
+
+RunService.RenderStepped:Connect(function(deltaTime)
+    if not AimLockEnabled then return end
+    if not IsInRound() then return end
+    
+    local target = FindTarget()
+    
+    if target and target.Character then
+        local targetPos = nil
         
+        if AimPrediction > 0 then
+            targetPos = GetPredictedPosition(target, AimPart)
+        else
+            local part = target.Character:FindFirstChild(AimPart)
+            if part then
+                targetPos = part.Position
+            end
+        end
+        
+        if targetPos then
+            local cameraPos = Camera.CFrame.Position
+            local desiredCFrame = CFrame.new(cameraPos, targetPos)
+            
+            if AimSmoothing > 0 then
+                Camera.CFrame = Camera.CFrame:Lerp(desiredCFrame, AimSmoothing)
+            else
+                Camera.CFrame = desiredCFrame
+            end
+        end
+    end
+end)
+
+print("[MM2 Aim Lock] Loaded")
