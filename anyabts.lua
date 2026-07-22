@@ -421,15 +421,11 @@ my_section:AddToggle("Lock Button Position", function(bool)
     if bool then
         if AimLockButton then
             SavedButtonPosition = AimLockButton.Position
-            AimLockButton.Draggable = false
             shared.Notify("Button position locked", 2)
         end
     else
-        if AimLockButton then
-            AimLockButton.Draggable = true
-            SavedButtonPosition = nil
-            shared.Notify("Button position unlocked", 2)
-        end
+        SavedButtonPosition = nil
+        shared.Notify("Button position unlocked", 2)
     end
 end)
 -- Function to update player list
