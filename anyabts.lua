@@ -2,8 +2,6 @@
 local shared = odh_shared_plugins
 local my_section = shared.AddSection("MM2 Aim Lock")
 
-local CurrentTarget = nil
-local LastSearch = 0
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Camera = workspace.CurrentCamera
@@ -101,7 +99,9 @@ local function MakeDraggable(gui, maid, ripple, sound, clickFunc)
     local dragging, dragInput, dragStart, startPos
     local hasMoved = false
     
-    maid:GiveTask(gui.InputBegan:Connect(function(input)
+    maid:GiveTask(gui.InputBegan if ButtonLocked then
+    return
+        end:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging, dragStart, startPos = true, input.Position, gui.Position
             hasMoved = false
@@ -135,7 +135,9 @@ local function MakeDraggable(gui, maid, ripple, sound, clickFunc)
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
     end))
     
-    maid:GiveTask(__UIS.InputChanged:Connect(function(input)
+    maid:GiveTask(__UIS.InputChanged if ButtonLocked then
+    return
+    end:Connect(function(input)
         if input == dragInput and dragging then
             local delta = input.Position - dragStart
             if delta.Magnitude > 7 then hasMoved = true end
@@ -162,6 +164,7 @@ function BindableButtons.AddBButton(id, text, onFunc, offFunc, customSize)
     ImageButton.Name = id
     ImageButton.Size = __UD2(widthScale, 0, buttonSizeY, 0)
     ImageButton.Position = __UD2(xPos, 0, yPos, 0)
+    DefaultButtonPos = ImageButton.Position
     ImageButton.AnchorPoint = __V2(0.5, 0.5)
     ImageButton.Image = __SHAPES[0]
     ImageButton.BackgroundTransparency = 1
@@ -269,6 +272,8 @@ end
 -- ==================== AIM LOCK LOGIC ====================
 
 -- Settings
+local ButtonLocked = false
+local DefaultButtonPos = nil
 local AimLockEnabled = false
 local AimTarget = "Murderer"
 local AimPart = "Head"
@@ -366,12 +371,25 @@ my_section:AddToggle("Show Bind Button", function(bool)
         end
     end
 end)
-
+-- Lock bind button
+my_section:AddToggle("Lock Button Position", function(bool)
+    ButtonLocked = bool
+    shared.Notify("Button Lock: " .. (bool and "ON" or "OFF"), 2)
+end)
 -- Slider: Button Size
 my_section:AddSlider("Button Size", 5, 30, 11, function(value)
     ButtonSize = value / 100
     if AimLockButton then
         BindableButtons.SetSize("MM2_AimLock", ButtonSize)
+    end
+end)
+
+-- Reset button position
+my_section:AddButton("Reset Button Position", function()
+    local btn = BindableButtons.Buttons["MM2_AimLock"]
+    if btn and DefaultButtonPos then
+        btn.Position = DefaultButtonPos
+        shared.Notify("Button position reset.", 2)
     end
 end)
 
@@ -611,31 +629,6 @@ local function FindTarget()
             if hum and hum.Health > 0 then
                 
                 -- Team check
-                if TeamCheckEnabled and IsSameTeam(LocalPlayer, targetPlayer) then
-                    return nil
-                end
-                
-                if WallCheck and not IsVisible(targetPlayer.Character) then
-                    return nil
-                end
-                return targetPlayer
-            end
-        end
-        return nil
-    end
-    
-    local knifeKeywords = {"knife", "нож"}
-    local gunKeywords = {"gun", "пистолет", "револьвер", "revolver", "sheriff", "шериф"}
-
-    local bestTarget = nil
-    local bestDistance = math.huge
-    
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            local hum = player.Character:FindFirstChild("Humanoid")
-            if hum and hum.Health > 0 then
-                
-                -- Team check
                 if TeamCheckEnabled and IsSameTeam(LocalPlayer, player) then
                     continue
                 end
@@ -698,62 +691,33 @@ end
 
 -- ==================== MAIN LOOP ====================
 
-RunService.RenderStepped:Connect(function()
-
-    if not AimLockEnabled or not IsInRound() then
-        CurrentTarget = nil
-        return
+RunService.RenderStepped:Connect(function(deltaTime)
+    if not AimLockEnabled then return end
+    if not IsInRound() then return end
+    
+    local target = FindTarget()
+    
+    if target and target.Character then
+        local targetPos = nil
+        
+        if AimPrediction > 0 then
+            targetPos = GetPredictedPosition(target, AimPart)
+        else
+            local part = target.Character:FindFirstChild(AimPart)
+            if part then
+                targetPos = part.Position
+            end
+        end
+        
+        if targetPos then
+            local cameraPos = Camera.CFrame.Position
+            local desiredCFrame = CFrame.new(cameraPos, targetPos)
+            
+            if AimSmoothing > 0 then
+                Camera.CFrame = Camera.CFrame:Lerp(desiredCFrame, AimSmoothing)
+            else
+                Camera.CFrame = desiredCFrame
+            end
+        end
     end
-
-    local now = os.clock()
-
-    if now - LastSearch > 0.3 then
-        CurrentTarget = FindTarget()
-        LastSearch = now
-    end
-
-    if not CurrentTarget
-        or not CurrentTarget.Character
-        or not CurrentTarget.Character:FindFirstChild(AimPart)
-    then
-        CurrentTarget = FindTarget()
-    end
-
-    if not CurrentTarget then
-        return
-    end
-
-    local part = CurrentTarget.Character:FindFirstChild(AimPart)
-    if not part then
-        return
-    end
-
-    local targetPos
-
-    if AimPrediction > 0 then
-        targetPos = GetPredictedPosition(CurrentTarget, AimPart)
-    else
-        targetPos = part.Position
-    end
-
-    if not targetPos then
-        return
-    end
-
-    local targetCFrame = CFrame.new(
-        Camera.CFrame.Position,
-        targetPos
-    )
-
-    if AimSmoothing > 0 then
-        Camera.CFrame = Camera.CFrame:Lerp(
-            targetCFrame,
-            math.clamp(AimSmoothing, 0, 1)
-        )
-    else
-        Camera.CFrame = targetCFrame
-    end
-
 end)
-
-print("[MM2 Aim Lock] Loaded")
