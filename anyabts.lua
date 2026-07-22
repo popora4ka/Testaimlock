@@ -99,12 +99,21 @@ local function MakeDraggable(gui, maid, ripple, sound, clickFunc)
     local dragging, dragInput, dragStart, startPos
     local hasMoved = false
     
-    maid:GiveTask(gui.InputBegan if ButtonLocked then
-    return
+    maid:GiveTask(gui.InputBegan:Connect(function(input)
+    if ButtonLocked then
+        return
+    end
+
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+
+                    
         end:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging, dragStart, startPos = true, input.Position, gui.Position
             hasMoved = false
+                        end
+                    end))
             
             sound:Play()
             local absPos = gui.AbsolutePosition
@@ -131,13 +140,15 @@ local function MakeDraggable(gui, maid, ripple, sound, clickFunc)
         end
     end))
     
-    maid:GiveTask(gui.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
-    end))
-    
-    maid:GiveTask(__UIS.InputChanged if ButtonLocked then
-    return
-    end:Connect(function(input)
+    maid:GiveTask(__UIS.InputChanged:Connect(function(input)
+    if ButtonLocked then
+        return
+    end
+
+    if input == dragInput and dragging then
+        
+     
+    maid:GiveTask(__UIS.InputChanged:Connect(function(input)
         if input == dragInput and dragging then
             local delta = input.Position - dragStart
             if delta.Magnitude > 7 then hasMoved = true end
