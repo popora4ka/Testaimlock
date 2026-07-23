@@ -1,4 +1,4 @@
--- MM2 Aim Lock v2.0 - Optimized
+-- MM2 Aim Lock v2.0 - FULLY FIXED
 local shared = odh_shared_plugins
 local my_section = shared.AddSection("MM2 Aim Lock")
 
@@ -7,7 +7,43 @@ local RunService = game:GetService("RunService")
 local Camera = workspace.CurrentCamera
 local LP = Players.LocalPlayer
 
--- ==================== OPTIMIZED BINDABLE BUTTONS ====================
+-- ==================== FIXED MAID ====================
+local Maid = {}
+Maid.__index = Maid
+
+function Maid.new()
+    return setmetatable({_tasks = {}, _destroyed = false}, Maid)
+end
+
+function Maid:GiveTask(task)
+    if self._destroyed then
+        if typeof(task) == "RBXScriptConnection" then task:Disconnect()
+        elseif typeof(task) == "Instance" then task:Destroy()
+        elseif type(task) == "function" then task()
+        elseif type(task) == "table" and type(task.Destroy) == "function" then task:Destroy() end
+        return
+    end
+    table.insert(self._tasks, task)
+    return task
+end
+
+function Maid:DoCleaning()
+    if self._destroyed then return end
+    self._destroyed = true
+    for _, task in pairs(self._tasks) do
+        if typeof(task) == "RBXScriptConnection" then task:Disconnect()
+        elseif typeof(task) == "Instance" then task:Destroy()
+        elseif type(task) == "function" then task()
+        elseif type(task) == "table" and type(task.Destroy) == "function" then task:Destroy() end
+    end
+    self._tasks = {}
+end
+
+function Maid:Destroy()
+    self:DoCleaning()
+end
+
+-- ==================== BINDABLE BUTTONS (OPTIMIZED) ====================
 local BindableButtons = {
     Buttons = {},
     Maids = {},
@@ -21,31 +57,10 @@ local BindableButtons = {
     }
 }
 
-local function NewMaid()
-    local self = {_tasks = {}, _destroyed = false}
-    setmetatable(self, {__index = function(t, k)
-        if k == "Destroy" or k == "DoCleaning" then
-            return function()
-                if self._destroyed then return end
-                self._destroyed = true
-                for _, task in pairs(self._tasks) do
-                    if typeof(task) == "RBXScriptConnection" then task:Disconnect()
-                    elseif typeof(task) == "Instance" then task:Destroy()
-                    elseif type(task) == "function" then task()
-                    elseif type(task) == "table" and type(task.Destroy) == "function" then task:Destroy() end
-                end
-                self._tasks = {}
-            end
-        end
-        return rawget(t, k)
-    end})
-    return self
-end
-
 function BindableButtons.Add(id, text, onFunc, offFunc, size)
     if BindableButtons.Buttons[id] then return end
     
-    local maid = NewMaid()
+    local maid = Maid.new()
     local camera = workspace.CurrentCamera
     local screen = camera.ViewportSize
     local sizeY = size or 0.11
@@ -181,6 +196,7 @@ function BindableButtons.Add(id, text, onFunc, offFunc, size)
                     releaseConn:Disconnect()
                 end
             end)
+            maid:GiveTask(releaseConn)
         end
     end))
     
@@ -265,13 +281,17 @@ local function IsVisible(targetChar)
     local dir = (part.Position - origin)
     local ray = workspace:Raycast(origin, dir.Unit * dir.Magnitude, params)
     
-    return ray and ray.Instance:IsDescendantOf(targetChar) or true
+    if ray then
+        return ray.Instance:IsDescendantOf(targetChar)
+    end
+    return true
 end
 
 local function HasTool(player, keywords)
     if not player.Character then return false end
     
     local function check(container)
+        if not container then return false end
         for _, item in ipairs(container:GetChildren()) do
             if item:IsA("Tool") then
                 local name = item.Name:lower()
@@ -283,7 +303,7 @@ local function HasTool(player, keywords)
         return false
     end
     
-    return check(player.Character) or (player.Backpack and check(player.Backpack))
+    return check(player.Character) or check(player.Backpack)
 end
 
 local function IsMurderer(player)
@@ -339,9 +359,7 @@ local function FindTarget()
     end
     
     local bestTarget, bestDist = nil, math.huge
-    local knifeTargets = {"knife", "нож"}
-    local gunTargets = {"gun", "пистолет", "револьвер", "revolver", "sheriff", "шериф"}
-    local checkFunc = settings.targetRole == "Murderer" and knifeTargets or gunTargets
+    local checkFunc = settings.targetRole == "Murderer" and {"knife", "нож"} or {"gun", "пистолет", "револьвер", "revolver", "sheriff", "шериф"}
     
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LP and player.Character then
@@ -384,7 +402,7 @@ local function ShakeCamera(intensity, duration)
 end
 
 -- ==================== UI SETUP ====================
-my_section:AddLabel("Credits: @anya_bts (Optimized)")
+my_section:AddLabel("Credits: @anya_bts (Optimized & Fixed)")
 my_section:AddParagraph("MM2 Aim Lock", "Advanced aim lock with prediction & smoothing")
 
 local function updatePlayerList()
@@ -406,8 +424,8 @@ my_section:AddToggle("Show Bind Button", function(bool)
     settings.showButton = bool
     if bool and not bindVal then
         bindVal, btnObj = BindableButtons.Add("MM2_AimLock", "AIM LOCK",
-            function() settings.enabled = true shared.Notify("Aim Lock: ON", 2) end,
-            function() settings.enabled = false shared.Notify("Aim Lock: OFF", 2) end,
+            function() settings.enabled = true; shared.Notify("Aim Lock: ON", 2) end,
+            function() settings.enabled = false; shared.Notify("Aim Lock: OFF", 2) end,
             settings.buttonSize
         )
         if bindVal then
@@ -415,7 +433,9 @@ my_section:AddToggle("Show Bind Button", function(bool)
             bindVal.Value = settings.enabled
         end
     elseif not bool and btnObj then
-        btnObj.Visible = false
+        if BindableButtons.Buttons["MM2_AimLock"] then
+            BindableButtons.Buttons["MM2_AimLock"].Visible = false
+        end
     end
 end)
 
@@ -505,7 +525,7 @@ my_section:AddToggle("Burger (very OP)", function(bool)
     end
 end)
 
--- ==================== MAIN LOOP (OPTIMIZED) ====================
+-- ==================== MAIN LOOP ====================
 RunService.RenderStepped:Connect(function(dt)
     if not settings.enabled or not IsInRound() then return end
     
@@ -532,4 +552,4 @@ RunService.RenderStepped:Connect(function(dt)
     end
 end)
 
-print("[MM2 Aim Lock] Loaded (Optimized)")
+print("[MM2 Aim Lock] Loaded (FIXED)")
