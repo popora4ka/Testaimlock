@@ -1999,7 +1999,7 @@ CreateButton(miscFrame, "Spawn Clone", function()
 		return
 	end
 
-local targetPlayer = nil
+	local targetPlayer = nil
 	for _, p in ipairs(Players:GetPlayers()) do
 		if string.lower(p.Name) == string.lower(targetName) then
 			targetPlayer = p
@@ -2007,26 +2007,25 @@ local targetPlayer = nil
 		end
 	end
 
-if not targetPlayer then
+	if not targetPlayer then
 		cloneStatusLabel.Text = "Player not in server"
 		cloneStatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
 		return
 	end
 
-local char = targetPlayer.Character
+	local char = targetPlayer.Character
 	if not char or not char.Parent then
 		cloneStatusLabel.Text = "Character not loaded"
 		cloneStatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
 		return
 	end
 
---Clone and cleanup
-
-local clone = char:Clone()
+	-- Clone and cleanup
+	local clone = char:Clone()
 	clone.Name = targetPlayer.Name .. "_Clone"
 	clone:SetAttribute("FakeClone", true)
 
-for _, v in ipairs(clone:GetDescendants()) do
+	for _, v in ipairs(clone:GetDescendants()) do
 		if v:IsA("Script") or v:IsA("LocalScript") or v:IsA("Sound") then
 			v:Destroy()
 		elseif v:IsA("Humanoid") then
@@ -2037,7 +2036,7 @@ for _, v in ipairs(clone:GetDescendants()) do
 		end
 	end
 
-Set PrimaryPart for positioning
+	-- Set PrimaryPart for positioning
 	local hrp = clone:FindFirstChild("HumanoidRootPart")
 	local head = clone:FindFirstChild("Head")
 	if hrp then
@@ -2046,19 +2045,19 @@ Set PrimaryPart for positioning
 		clone.PrimaryPart = head
 	end
 
-Position near local player
+	-- Position near local player
 	local localChar = game.Players.LocalPlayer.Character
 	if localChar and localChar:FindFirstChild("HumanoidRootPart") and clone.PrimaryPart then
 		clone:SetPrimaryPartCFrame(localChar.HumanoidRootPart.CFrame + Vector3.new(math.random(-5,5), 0, math.random(-5,5)))
 	end
 
-Remove old clone with same name
+	-- Remove old clone with same name
 	local existingClone = workspace:FindFirstChild(clone.Name)
 	if existingClone then existingClone:Destroy() end
 
-clone.Parent = workspace
+	clone.Parent = workspace
 
-Add name billboard to head
+	-- Add name billboard to head
 	if head then
 		local billboard = Instance.new("BillboardGui")
 		billboard.Name = "NameTag"
@@ -2069,7 +2068,7 @@ Add name billboard to head
 		billboard.MaxDistance = 50
 		billboard.Parent = head
 
-local nameLabel = Instance.new("TextLabel")
+		local nameLabel = Instance.new("TextLabel")
 		nameLabel.BackgroundTransparency = 1
 		nameLabel.Size = UDim2.new(1, 0, 0, 30)
 		nameLabel.Text = targetPlayer.DisplayName or targetPlayer.Name
