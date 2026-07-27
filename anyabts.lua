@@ -1,5 +1,5 @@
--- MM2 Aim Lock for OverdriveH – улучшенная версия
--- Исправлены ошибки, добавлены FOV, сброс velocity, оптимизация
+-- MM2 Aim Lock for OverdriveH – финальная улучшенная версия
+-- Полностью рабочий код с исправленным BindableButtons
 local shared = odh_shared_plugins
 local my_section = shared.AddSection("MM2 Aim Lock")
 
@@ -8,40 +8,211 @@ local RunService = game:GetService("RunService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
--- ============ BINDABLE BUTTONS (без изменений, см. оригинал) ============
--- (здесь вставьте оригинальный блок BindableButtons, он рабочий)
--- Для краткости оставлю как есть, в финальном коде он будет полностью скопирован
---     sound.Volume = 0.5
-    sound.Parent = ImageButton
+-- ==================== BINDABLE BUTTONS (ПОЛНАЯ РЕАЛИЗАЦИЯ) ====================
+local __INSERT = table.insert
+local __FLOOR = math.floor
+local __PCLR = Color3.new
+local __RGB = Color3.fromRGB
+local __UD2 = UDim2.new
+local __UD = UDim.new
+local __V2 = Vector2.new
 
+local __TS = game:GetService("TweenService")
+local __UIS = game:GetService("UserInputService")
+local __RS = game:GetService("RunService")
+local __PLRS = game:GetService("Players")
+
+local Maid = {}
+Maid.__index = Maid
+function Maid.new() return setmetatable({_tasks = {}, _destroyed = false}, Maid) end
+function Maid:GiveTask(task)
+    if self._destroyed then
+        if typeof(task) == "RBXScriptConnection" then task:Disconnect()
+        elseif typeof(task) == "Instance" then task:Destroy()
+        elseif type(task) == "function" then task()
+        elseif type(task) == "table" and type(task).Destroy == "function" then task:Destroy() end
+        return
+    end
+    __INSERT(self._tasks, task)
+    return task
+end
+function Maid:DoCleaning()
+    if self._destroyed then return end
+    self._destroyed = true
+    for _, t in pairs(self._tasks) do
+        if typeof(t) == "RBXScriptConnection" then t:Disconnect()
+        elseif typeof(t) == "Instance" then t:Destroy()
+        elseif type(t) == "function" then t()
+        elseif type(t) == "table" and type(t).Destroy == "function" then t:Destroy() end
+    end
+    self._tasks = {}
+end
+function Maid:Destroy() self:DoCleaning() end
+
+local BindableButtons = {Buttons = {}, Maids = {}, Count = 0}
+local __RootMaid = Maid.new()
+
+local __SHAPES = {
+    [0] = "rbxassetid://86221076925479",
+    [1] = "rbxassetid://96242665417546",
+    [2] = "rbxassetid://97129189935336",
+    [3] = "rbxassetid://76165862027868",
+    [4] = "rbxassetid://125868092127496"
+}
+
+local __NORMAL_COLOR = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, __PCLR(0.133333, 0.827451, 0.494118)),
+    ColorSequenceKeypoint.new(0.6, __PCLR(0.231373, 0.509804, 0.498039)),
+    ColorSequenceKeypoint.new(1, __PCLR(0.501961, 0.501961, 0.501961))
+})
+
+local __TOGGLED_COLOR = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, __PCLR(0.0784314, 0.0784314, 0.0784314)),
+    ColorSequenceKeypoint.new(0.75, __PCLR(0.0784314, 0.0784314, 0.54902)),
+    ColorSequenceKeypoint.new(1, __PCLR(0.470588, 0.156863, 0.470588))
+})
+
+local function safecallback(callback)
+    if not callback then return end
+    local success, err = xpcall(callback, function(e) return debug.traceback(e) end)
+    if not success then
+        warn("[ERROR] Fucker Something Went Wrong, Traceback: " .. tostring(err))
+    end
+end
+
+local function GetStorage()
+    local player = __PLRS.LocalPlayer
+    local playerGui = player:WaitForChild("PlayerGui")
+    local sg = playerGui:FindFirstChild("@bindstorage")
+    if not sg then
+        sg = Instance.new("ScreenGui")
+        sg.Name = "@bindstorage"
+        sg.ResetOnSpawn = false
+        sg.IgnoreGuiInset = true
+        pcall(function() sg.ScreenInsets = Enum.ScreenInsets.None end)
+        sg.Parent = playerGui
+    end
+    return sg
+end
+
+local function MakeDraggable(gui, maid, ripple, sound, clickFunc)
+    local dragging, dragInput, dragStart, startPos
+    local hasMoved = false
+    maid:GiveTask(gui.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging, dragStart, startPos = true, input.Position, gui.Position
+            hasMoved = false
+            sound:Play()
+            local absPos = gui.AbsolutePosition
+            ripple.Position = __UD2(0, input.Position.X - absPos.X, 0, input.Position.Y - absPos.Y)
+            ripple.Size = __UD2(0, 0, 0, 0)
+            ripple.BackgroundTransparency = 0.5
+            ripple.Visible = true
+            __TS:Create(ripple, TweenInfo.new(0.4, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+                Size = __UD2(0, 45, 0, 45),
+                BackgroundTransparency = 1
+            }):Play()
+            local releaseConn
+            releaseConn = __UIS.InputEnded:Connect(function(endInput)
+                if endInput.UserInputType == input.UserInputType then
+                    dragging = false
+                    if not hasMoved then
+                        clickFunc()
+                    end
+                    releaseConn:Disconnect()
+                end
+            end)
+        end
+    end))
+    maid:GiveTask(gui.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+    end))
+    maid:GiveTask(__UIS.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            if delta.Magnitude > 7 then hasMoved = true end
+            local screen = gui.Parent.AbsoluteSize
+            gui.Position = __UD2(startPos.X.Scale + (delta.X / screen.X), 0, startPos.Y.Scale + (delta.Y / screen.Y), 0)
+        end
+    end))
+end
+
+function BindableButtons.AddBButton(id, text, onFunc, offFunc, customSize)
+    if BindableButtons.Buttons[id] then return BindableButtons.Buttons[id]:FindFirstChild("BindValue") end
+    local buttonMaid = Maid.new()
+    local camera = workspace.CurrentCamera
+    local screen = camera.ViewportSize
+    local buttonSizeY = customSize or 0.11
+    local widthScale = buttonSizeY * (screen.Y / screen.X)
+    local xPos = 0.1 + ((BindableButtons.Count % 8) * (widthScale + 0.005))
+    local yPos = 0.9 - (__FLOOR(BindableButtons.Count / 8) * (buttonSizeY + 0.015))
+    local ImageButton = Instance.new("ImageButton")
+    ImageButton.Name = id
+    ImageButton.Size = __UD2(widthScale, 0, buttonSizeY, 0)
+    ImageButton.Position = __UD2(xPos, 0, yPos, 0)
+    ImageButton.AnchorPoint = __V2(0.5, 0.5)
+    ImageButton.Image = __SHAPES[0]
+    ImageButton.BackgroundTransparency = 1
+    ImageButton.BorderSizePixel = 0
+    ImageButton.ClipsDescendants = false
+    ImageButton.AutoButtonColor = false
+    ImageButton.Parent = GetStorage()
+    buttonMaid:GiveTask(ImageButton)
+    local BindValue = Instance.new("BoolValue", ImageButton)
+    BindValue.Name = "BindValue"
+    local TextLabel = Instance.new("TextLabel", ImageButton)
+    TextLabel.Name = "@Text"
+    TextLabel.Size = __UD2(0.8, 0, 0.8, 0)
+    TextLabel.Position = __UD2(0.5, 0, 0.5, 0)
+    TextLabel.AnchorPoint = __V2(0.5, 0.5)
+    TextLabel.BackgroundTransparency = 1
+    TextLabel.Font = Enum.Font.Jura
+    TextLabel.Text = text
+    TextLabel.TextColor3 = __PCLR(1, 1, 1)
+    TextLabel.TextSize = 10
+    TextLabel.TextWrapped = true
+    TextLabel.ZIndex = 3
+    local Aspect = Instance.new("UIAspectRatioConstraint", ImageButton)
+    Aspect.AspectRatio = 1
+    Aspect.AspectType = Enum.AspectType.ScaleWithParentSize
+    local Stroke = Instance.new("UIGradient", ImageButton)
+    Stroke.Name = "@Stroke"
+    Stroke.Color = __NORMAL_COLOR
+    local ripple = Instance.new("Frame")
+    ripple.Name = "@ripple"
+    ripple.BackgroundColor3 = __RGB(0, 155, 255)
+    ripple.BackgroundTransparency = 0.5
+    ripple.Size = __UD2(0, 0, 0, 0)
+    ripple.AnchorPoint = __V2(0.5, 0.5)
+    ripple.Visible = false
+    ripple.ZIndex = 2
+    ripple.Parent = ImageButton
+    Instance.new("UICorner", ripple).CornerRadius = __UD(1, 0)
+    local sound = Instance.new("Sound")
+    sound.SoundId = "rbxassetid://3868133279"
+    sound.Volume = 0.5
+    sound.Parent = ImageButton
     local debounce = false
     local tInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
-
     local function onClick()
         if debounce then return end
         debounce = true
         local fOut = __TS:Create(ImageButton, tInfo, {ImageTransparency = 1})
         fOut:Play()
         fOut.Completed:Wait()
-        
         BindValue.Value = not BindValue.Value
         Stroke.Color = BindValue.Value and __TOGGLED_COLOR or __NORMAL_COLOR
         if BindValue.Value then safecallback(onFunc) else safecallback(offFunc) end
-        
         local fIn = __TS:Create(ImageButton, tInfo, {ImageTransparency = 0})
         fIn:Play()
         fIn.Completed:Wait()
         debounce = false
     end
-
     MakeDraggable(ImageButton, buttonMaid, ripple, sound, onClick)
     buttonMaid:GiveTask(__RS.RenderStepped:Connect(function() Stroke.Rotation = (Stroke.Rotation + 1) % 360 end))
-
     BindableButtons.Buttons[id] = ImageButton
     BindableButtons.Maids[id] = buttonMaid
     BindableButtons.Count = BindableButtons.Count + 1
-    
-    -- Store reference to the button for resizing
     return BindValue, ImageButton
 end
 
@@ -63,7 +234,6 @@ end
 function BindableButtons.SetSize(id, sizeY)
     local btn = BindableButtons.Buttons[id]
     if not btn then return end
-    
     local screen = workspace.CurrentCamera.ViewportSize
     local widthScale = sizeY * (screen.Y / screen.X)
     btn.Size = __UD2(widthScale, 0, sizeY, 0)
@@ -78,18 +248,20 @@ local BindButtonEnabled = false
 local TargetPlayerName = nil
 local ButtonSize = 0.11
 
--- Новые настройки
-local AimPrediction = 0          -- 0..1
-local AimSmoothing = 0           -- 0..1
+local AimPrediction = 0
+local AimSmoothing = 0
 local TeamCheckEnabled = false
-local FOVLimit = 90              -- градусы, 0 = без ограничений
+local FOVLimit = 90
 
--- Переменные состояния
 local CurrentTarget = nil
 local LastTargetPosition = nil
 local LastTargetVelocity = Vector3.zero
 local LastUpdateTime = 0
 local TargetSwitchFlag = false
+
+-- Объявляем переменные для кнопки и привязки
+local AimLockBind = nil
+local AimLockButton = nil
 
 -- ============ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ============
 local function IsInRound()
@@ -147,7 +319,7 @@ end
 -- ============ ПОИСК ЦЕЛИ С FOV ============
 local function FindTarget()
     local bestTarget = nil
-    local bestScore = math.huge   -- чем меньше, тем лучше (дистанция + угол)
+    local bestScore = math.huge
     local knifeKeywords = {"knife", "нож"}
     local gunKeywords = {"gun", "пистолет", "револьвер", "revolver", "sheriff", "шериф"}
 
@@ -158,12 +330,10 @@ local function FindTarget()
         local hum = player.Character:FindFirstChild("Humanoid")
         if not hum or hum.Health <= 0 then goto continue end
 
-        -- Team check
         if TeamCheckEnabled and IsSameTeam(LocalPlayer, player) then
             goto continue
         end
 
-        -- Роль
         local valid = false
         if AimTarget == "Murderer" then
             valid = GetTool(player, knifeKeywords) ~= nil
@@ -172,7 +342,6 @@ local function FindTarget()
         end
         if not valid then goto continue end
 
-        -- Wall check
         if WallCheck and not IsVisible(player.Character) then
             goto continue
         end
@@ -188,13 +357,11 @@ local function FindTarget()
         local distance = (targetPos - camPos).Magnitude
         local angle = math.deg(math.acos(math.clamp(camLook:Dot(dirToTarget), -1, 1)))
 
-        -- FOV фильтр (0 = без ограничений)
         if FOVLimit > 0 and angle > FOVLimit then
             goto continue
         end
 
-        -- Скоринг: дистанция + угол (приоритет ближним целям в центре)
-        local score = distance * (1 + angle / 90)   -- можно настраивать
+        local score = distance * (1 + angle / 90)
         if score < bestScore then
             bestScore = score
             bestTarget = player
@@ -206,7 +373,7 @@ local function FindTarget()
     return bestTarget
 end
 
--- ============ ПРЕДСКАЗАНИЕ С УЧЁТОМ УСКОРЕНИЯ ============
+-- ============ ПРЕДСКАЗАНИЕ ============
 local function GetPredictedPosition(target, part)
     if not target or not target.Character then return nil end
     local targetPart = target.Character:FindFirstChild(part)
@@ -219,18 +386,15 @@ local function GetPredictedPosition(target, part)
 
     if LastTargetPosition and delta > 0.01 then
         velocity = (currentPos - LastTargetPosition) / delta
-        -- Анти-телепорт: если скорость слишком большая, сбрасываем
         if velocity.Magnitude > 100 then
             velocity = Vector3.zero
             LastTargetPosition = currentPos
         end
     end
 
-    -- Используем MoveDirection для более точного предсказания движения персонажа
     local hum = target.Character:FindFirstChild("Humanoid")
     if hum and hum.MoveDirection.Magnitude > 0.1 then
         local moveVel = hum.MoveDirection * hum.WalkSpeed
-        -- Смешиваем с вычисленной скоростью (вес можно настроить)
         velocity = velocity:Lerp(moveVel, 0.3)
     end
 
@@ -248,7 +412,6 @@ RunService.Heartbeat:Connect(function()
 
     local target = FindTarget()
 
-    -- Сброс предсказания при смене цели
     if target ~= CurrentTarget then
         CurrentTarget = target
         LastTargetPosition = nil
@@ -281,9 +444,8 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- ============ UI (меню OverdriveH) ============
-my_section:AddLabel("Credits: @anya_bts")
+my_section:AddLabel("Credits: @anya_bts (improved)")
 
--- Toggle: Enable Aim Lock
 my_section:AddToggle("Enable Aim Lock", function(bool)
     AimLockEnabled = bool
     if AimLockBind then
@@ -291,7 +453,6 @@ my_section:AddToggle("Enable Aim Lock", function(bool)
     end
 end)
 
--- Toggle: Show Bind Button
 my_section:AddToggle("Show Bind Button", function(bool)
     BindButtonEnabled = bool
     if bool then
@@ -327,7 +488,6 @@ my_section:AddToggle("Show Bind Button", function(bool)
     end
 end)
 
--- Slider: Button Size
 my_section:AddSlider("Button Size", 5, 30, 11, function(value)
     ButtonSize = value / 100
     if AimLockButton then
@@ -335,7 +495,6 @@ my_section:AddSlider("Button Size", 5, 30, 11, function(value)
     end
 end)
 
--- Dropdown: Target Player
 local playerListDropdown
 local function UpdatePlayerList()
     local playerNames = {"None (Use Role)"}
@@ -357,52 +516,42 @@ end)
 
 UpdatePlayerList()
 
--- Обновление списка через события (вместо таймера)
 Players.PlayerAdded:Connect(function() task.wait(0.5) UpdatePlayerList() end)
 Players.PlayerRemoving:Connect(function() task.wait(0.5) UpdatePlayerList() end)
--- Также обновим при загрузке персонажа (на всякий случай)
 LocalPlayer.CharacterAdded:Connect(function() task.wait(1) UpdatePlayerList() end)
 
--- Dropdown: Target Role
 my_section:AddDropdown("Target Role", {"Murderer", "Sheriff"}, function(selected)
     AimTarget = selected
 end)
 
--- Dropdown: Target Part
 my_section:AddDropdown("Target Part", {"Head", "Body"}, function(selected)
     AimPart = (selected == "Head") and "Head" or "HumanoidRootPart"
 end)
 
--- Slider: Aim Prediction (0-100 → 0-1)
 my_section:AddSlider("Aim Prediction", 0, 100, 0, function(value)
     AimPrediction = value / 100
 end)
 
--- Slider: Aim Smoothing (0-100 → 0-1)
 my_section:AddSlider("Aim Smoothing", 0, 100, 0, function(value)
     AimSmoothing = value / 100
 end)
 
--- Slider: FOV Limit (0 = выкл., 10-180 градусов)
 my_section:AddSlider("FOV Limit (градусы)", 0, 180, 90, function(value)
     FOVLimit = value
 end)
 
--- Toggle: Team Check
 my_section:AddToggle("Team Check", function(bool)
     TeamCheckEnabled = bool
     shared.Notify("Team Check: " .. (bool and "ON" or "OFF"), 2)
 end)
 
--- Toggle: Wall Check
 my_section:AddToggle("Wall Check", function(bool)
     WallCheck = bool
 end)
 
--- Keybind: Toggle Aim Lock
 my_section:AddKeybind("Toggle Key", "T", function()
     AimLockEnabled = not AimLockEnabled
     if AimLockBind then AimLockBind.Value = AimLockEnabled end
 end)
 
-print("[MM2 Aim Lock] Improved version loaded successfully.")
+print("[MM2 Aim Lock] Final improved version loaded successfully.")
